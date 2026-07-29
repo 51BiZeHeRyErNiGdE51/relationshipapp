@@ -1,0 +1,17 @@
+# Xcode
+*.xcodeproj
+!project.yml
+DerivedData/
+build/
+*.xcresult
+
+# SPM
+.swiftpm/
+.build/
+
+# Secrets / per-developer config
+Sources/App/GoogleService-Info.plist
+*.mobileprovision
+
+# macOS
+.DS_Store

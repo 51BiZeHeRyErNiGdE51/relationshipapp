@@ -1,0 +1,105 @@
+name: Lovio
+options:
+  bundleIdPrefix: com.lovio
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 12.0.0
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios
+    from: 5.0.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 8.0.0
+
+targets:
+  Lovio:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    dependencies:
+      - target: LovioWidgets
+      - package: Firebase
+        products:
+          - FirebaseAuth
+          - FirebaseFirestore
+          - FirebaseStorage
+          - FirebaseMessaging
+          - FirebaseAnalytics
+          - FirebaseRemoteConfig
+      - package: RevenueCat
+        product: RevenueCat
+      - package: GoogleSignIn
+        product: GoogleSignIn
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lovio.app
+        CODE_SIGN_ENTITLEMENTS: Config/Lovio.entitlements
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0.0
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        OTHER_LDFLAGS: "$(inherited) -ObjC"
+    info:
+      path: Config/Lovio-Info.plist
+      properties:
+        CFBundleDisplayName: Lovio
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        NSUserTrackingUsageDescription: "We use this to measure ads and improve Lovio. Your relationship data is never sold."
+        NSPhotoLibraryUsageDescription: "Add photos to your shared journal and widgets."
+        NSCameraUsageDescription: "Capture moments together directly into your journal."
+        NSMicrophoneUsageDescription: "Record voice memories for your partner."
+        NSLocationWhenInUseUsageDescription: "Show the distance between you and your partner on widgets."
+        NSCalendarsFullAccessUsageDescription: "Sync your shared dates with Apple Calendar."
+        NSFaceIDUsageDescription: "Protect your private journal entries."
+        UIBackgroundModes:
+          - remote-notification
+        ITSAppUsesNonExemptEncryption: false
+        FirebaseAppDelegateProxyEnabled: false
+
+  LovioWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Sources/Shared
+    dependencies: []
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lovio.app.widgets
+        CODE_SIGN_ENTITLEMENTS: Config/LovioWidgets.entitlements
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0.0
+    info:
+      path: Config/LovioWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: Lovio Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+schemes:
+  Lovio:
+    build:
+      targets:
+        Lovio: all
+    run:
+      config: Debug
+    archive:
+      config: Release
