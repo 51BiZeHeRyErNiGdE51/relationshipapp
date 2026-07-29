@@ -112,6 +112,13 @@ struct PaywallView: View {
                             .multilineTextAlignment(.center)
                     }
 
+                    if model.isDemoMode || !RevenueCatBootstrap.isConfigured {
+                        Text("Preview pricing — live prices load from the App Store once products are configured.")
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(.white.opacity(0.5))
+                            .multilineTextAlignment(.center)
+                    }
+
                     HStack(spacing: 20) {
                         Button("Restore purchases") {
                             Task { await model.restorePurchases() }

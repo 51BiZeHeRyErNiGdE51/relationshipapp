@@ -16,7 +16,7 @@ open Lovio.xcodeproj           # build & run the "Lovio" scheme
 
 1. Add your Firebase `GoogleService-Info.plist` to `Sources/App/` (gitignored) and add it to the Lovio target — Auth, Firestore, Storage, Messaging, GA4 and Remote Config light up automatically.
 2. Set `REVENUECAT_API_KEY` (scheme environment variable, or hardcode in `RevenueCatBootstrap`) with a `premium` entitlement and monthly/yearly packages.
-3. Update bundle IDs / App Group (`group.com.lovio.app`) / signing team to your own.
+3. Update bundle IDs / App Group (`group.com.bsekapps.lovio`) / signing team to your own.
 
 ## Product pillars
 

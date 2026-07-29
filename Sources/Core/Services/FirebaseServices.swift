@@ -59,10 +59,16 @@ final class FirebaseAuthService: NSObject, AuthService, @unchecked Sendable {
 
     func signIn(with provider: AuthProviderKind) async throws -> AuthenticatedUser {
         switch provider {
+        case .anonymous: try await signInAnonymously()
         case .apple: try await signInWithApple()
         case .google: try await signInWithGoogle()
         case .demo: throw LovioError.notSignedIn
         }
+    }
+
+    private func signInAnonymously() async throws -> AuthenticatedUser {
+        let result = try await Auth.auth().signInAnonymously()
+        return AuthenticatedUser(id: result.user.uid, displayName: "You", email: nil)
     }
 
     func signOut() async throws {
@@ -183,13 +189,15 @@ struct FirestoreRelationshipService: RelationshipService {
     private var db: Firestore { Firestore.firestore() }
 
     func currentRelationship(for user: UserID) async throws -> Relationship? {
+        // Single-field query (no composite index needed); status filtered locally.
         let snapshot = try await db.collection("relationships")
             .whereField("memberIDs", arrayContains: user)
-            .whereField("status", in: [RelationshipStatus.active.rawValue,
-                                       RelationshipStatus.pendingPartner.rawValue])
-            .limit(to: 1)
             .getDocuments()
-        return try snapshot.documents.first?.data(as: Relationship.self)
+        return snapshot.documents
+            .compactMap { try? $0.data(as: Relationship.self) }
+            .filter { $0.status == .active || $0.status == .pendingPartner }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
     }
 
     func createRelationship(creator: UserID, anniversary: Date?) async throws -> Relationship {

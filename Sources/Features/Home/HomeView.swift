@@ -10,11 +10,13 @@ struct HomeView: View {
     @State private var showMoodSheet = false
     @State private var showQuestion = false
     @State private var missYouBurst = false
+    @State private var showJoinSheet = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 header
+                pairCard
                 streakAndDaysRow
                 questionCard
                 moodRow
@@ -34,7 +36,52 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showMoodSheet) { MoodSheet() }
         .sheet(isPresented: $showQuestion) { DailyQuestionView() }
+        .sheet(isPresented: $showJoinSheet) { JoinPartnerSheet() }
         .refreshable { await model.refreshToday() }
+    }
+
+    // MARK: Pairing card (solo mode)
+    //
+    // Users can enter the app without a partner; connecting stays one tap away.
+
+    @ViewBuilder
+    private var pairCard: some View {
+        if !model.isPaired {
+            GlassCard(tint: Lovio.Palette.rose) {
+                VStack(spacing: 12) {
+                    Label("Lovio is better with your person", systemImage: "heart.text.square.fill")
+                        .font(Lovio.Type_.headline)
+                        .foregroundStyle(Lovio.Palette.rose)
+
+                    Text(model.relationship?.inviteCode?.display ?? "· · · · · ·")
+                        .font(.system(size: 34, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(Lovio.Gradients.hero)
+
+                    HStack(spacing: 10) {
+                        if let code = model.relationship?.inviteCode?.value {
+                            ShareLink(item: "Join me on Lovio 💞 My code: \(code)") {
+                                Label("Share code", systemImage: "square.and.arrow.up")
+                                    .font(Lovio.Type_.caption)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Capsule().fill(.ultraThinMaterial))
+                            }
+                        }
+                        Button {
+                            showJoinSheet = true
+                        } label: {
+                            Label("Enter their code", systemImage: "keyboard")
+                                .font(Lovio.Type_.caption)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Capsule().fill(.ultraThinMaterial))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
     }
 
     // MARK: Header

@@ -21,6 +21,10 @@ public struct AuthenticatedUser: Sendable, Equatable {
 }
 
 public enum AuthProviderKind: String, Sendable {
+    /// Default: frictionless, accountless entry. Firebase anonymous auth mints
+    /// a stable UserID with zero user-facing steps. Apple/Google remain
+    /// available for later account linking (device migration).
+    case anonymous
     case apple, google, demo
 }
 

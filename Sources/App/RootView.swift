@@ -20,16 +20,8 @@ struct RootView: View {
                 }
                 .transition(.opacity)
 
-            case .signedOut:
-                WelcomeView()
-                    .transition(.opacity)
-
-            case .needsPairing:
-                PairingView(mode: .choose)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-
-            case .waitingForPartner:
-                PairingView(mode: .waiting)
+            case .onboarding:
+                OnboardingFlowView()
                     .transition(.opacity)
 
             case .active:

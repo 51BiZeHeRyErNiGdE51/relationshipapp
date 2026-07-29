@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// Lovio Firestore security rules.
+// Deploy: Firebase console → Firestore → Rules → paste → Publish
+// (or `firebase deploy --only firestore:rules` with the CLI).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(relID) {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/relationships/$(relID)).data.memberIDs;
+    }
+
+    // Profiles: anyone signed-in can read (needed to show partner name after
+    // pairing); only the owner writes.
+    match /users/{userID} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == userID;
+    }
+
+    // Invite codes: readable by any signed-in user (that's how a partner
+    // resolves a code); created by the relationship creator.
+    match /invites/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow delete: if signedIn();
+    }
+
+    match /relationships/{relID} {
+      // Read/update restricted to members. Update also allows a signed-in
+      // non-member to join ONLY by adding themselves to memberIDs
+      // (invite-code redemption) while the relationship has a free slot.
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIDs;
+      allow read: if signedIn();
+      allow update: if signedIn() && (
+        request.auth.uid in resource.data.memberIDs
+        || (
+          resource.data.memberIDs.size() < 2
+          && request.resource.data.memberIDs.hasAll(resource.data.memberIDs)
+          && request.auth.uid in request.resource.data.memberIDs
+        )
+      );
+
+      // All couple content: members only.
+      match /{collection}/{docID} {
+        allow read, write: if isMember(relID);
+      }
+    }
+  }
+}

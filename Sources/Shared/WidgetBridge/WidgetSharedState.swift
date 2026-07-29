@@ -10,7 +10,7 @@ import WidgetKit
 // so widgets feel alive without the app being opened.
 
 public enum AppGroup {
-    public static let identifier = "group.com.lovio.app"
+    public static let identifier = "group.com.bsekapps.lovio"
     public static var defaults: UserDefaults {
         UserDefaults(suiteName: identifier) ?? .standard
     }

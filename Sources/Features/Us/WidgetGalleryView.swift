@@ -134,6 +134,7 @@ struct SettingsView: View {
             }
 
             Section {
+                Button("Replay intro") { model.replayIntro() }
                 Button("Sign out") { Task { await model.signOut() } }
                 Button("End relationship", role: .destructive) { showEndRelationship = true }
             } footer: {

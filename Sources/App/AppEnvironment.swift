@@ -51,10 +51,8 @@ struct Services: Sendable {
 
 enum SessionPhase: Equatable {
     case loading
-    case signedOut
-    case needsPairing          // signed in, no relationship yet
-    case waitingForPartner     // created invite, partner hasn't joined
-    case active                // paired couple — the real app
+    case onboarding            // first launch: tutorial → paywall → pairing
+    case active                // the app — solo (invite pending) or paired
 }
 
 @MainActor
@@ -92,63 +90,56 @@ final class AppModel {
     var myName: String { myProfile?.displayName ?? user?.displayName ?? "You" }
 
     // MARK: Session lifecycle
+    //
+    // Accountless by design: no email, no sign-up screen. First launch runs the
+    // tutorial → paywall → pairing flow; a Firebase anonymous user + a pending
+    // relationship (with invite code) are created silently behind it.
+
+    private static let onboardingCompletedKey = "lovio.onboarding.completed"
+
+    var isPaired: Bool { relationship?.status == .active }
 
     func start() async {
         services.analytics.track(.appOpened)
         await services.experiments.refresh()
 
-        guard let user = await services.auth.currentUser() else {
-            phase = .signedOut
+        guard UserDefaults.standard.bool(forKey: Self.onboardingCompletedKey) else {
+            services.analytics.track(.onboardingStarted)
+            phase = .onboarding
             return
         }
-        self.user = user
-        if !isDemoMode { RevenueCatBootstrap.configure(appUserID: user.id) }
-        await loadSession()
+        await ensureSession()
         await drainWidgetOutbox()
     }
 
-    func signIn(with provider: AuthProviderKind) async {
+    /// Guarantees: a signed-in user (anonymous if needed), a profile document,
+    /// and a relationship with an invite code. Safe to call repeatedly.
+    func ensureSession() async {
         do {
-            let user = try await services.auth.signIn(with: provider)
+            var current = await services.auth.currentUser()
+            if current == nil {
+                current = try await services.auth.signIn(with: .anonymous)
+                services.analytics.track(.signInCompleted(provider: "anonymous"))
+            }
+            guard let user = current else { return }
             self.user = user
-            services.analytics.track(.signInCompleted(provider: provider.rawValue))
             if !isDemoMode { RevenueCatBootstrap.configure(appUserID: user.id) }
+
             var profile = try await services.relationship.profile(for: user.id)
                 ?? UserProfile(id: user.id, displayName: user.displayName)
             profile.lastActiveAt = .now
-            try await services.relationship.updateProfile(profile)
-            await loadSession()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
+            try? await services.relationship.updateProfile(profile)
+            myProfile = profile
 
-    func signOut() async {
-        try? await services.auth.signOut()
-        user = nil
-        relationship = nil
-        partnerProfile = nil
-        phase = .signedOut
-    }
-
-    private func loadSession() async {
-        guard let user else { phase = .signedOut; return }
-        do {
-            myProfile = try await services.relationship.profile(for: user.id)
-                ?? UserProfile(id: user.id, displayName: user.displayName)
-
-            guard let rel = try await services.relationship.currentRelationship(for: user.id) else {
-                phase = .needsPairing
-                return
+            var rel = try await services.relationship.currentRelationship(for: user.id)
+            if rel == nil {
+                rel = try await services.relationship.createRelationship(
+                    creator: user.id, anniversary: nil)
+                services.analytics.track(.invitationCreated)
             }
             relationship = rel
 
-            if rel.status == .pendingPartner {
-                phase = .waitingForPartner
-                return
-            }
-
-            if let partnerID = rel.partnerID(of: user.id) {
+            if let rel, rel.status == .active, let partnerID = rel.partnerID(of: user.id) {
                 partnerProfile = try await services.relationship.profile(for: partnerID)
             }
             premium = await services.premium.premiumState(relationship: rel, me: user.id)
@@ -161,44 +152,57 @@ final class AppModel {
             await refreshToday()
         } catch {
             errorMessage = error.localizedDescription
-            phase = user.id.isEmpty ? .signedOut : .needsPairing
         }
+    }
+
+    /// Called by the onboarding flow. Solo usage is fully supported —
+    /// the partner code can be entered later from the Home screen.
+    func completeOnboarding(partnerCode: String?) async {
+        UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
+        await ensureSession()
+        if let code = partnerCode, !code.trimmingCharacters(in: .whitespaces).isEmpty {
+            await joinRelationship(code: code)
+        }
+        await drainWidgetOutbox()
+    }
+
+    func replayIntro() {
+        UserDefaults.standard.set(false, forKey: Self.onboardingCompletedKey)
+        phase = .onboarding
+    }
+
+    func signOut() async {
+        try? await services.auth.signOut()
+        UserDefaults.standard.set(false, forKey: Self.onboardingCompletedKey)
+        user = nil
+        relationship = nil
+        partnerProfile = nil
+        phase = .onboarding
     }
 
     // MARK: Pairing
 
-    func createRelationship(anniversary: Date?) async {
-        guard let user else { return }
-        do {
-            relationship = try await services.relationship.createRelationship(
-                creator: user.id, anniversary: anniversary)
-            services.analytics.track(.invitationCreated)
-            phase = .waitingForPartner
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     func joinRelationship(code: String) async {
         guard let user else { return }
         do {
+            // Production note: joining abandons the user's own pending
+            // relationship; a Cloud Function should garbage-collect it.
             let rel = try await services.relationship.joinRelationship(code: code, joiner: user.id)
             relationship = rel
             services.analytics.track(.invitationRedeemed)
             services.analytics.track(.relationshipActivated)
-            await loadSession()
+            Haptics.celebration()
+            await ensureSession()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    /// Demo/dev helper — pretend the partner redeemed the code.
-    func simulatePartnerJoined() async {
-        guard var rel = relationship else { return }
-        rel.status = .active
-        if rel.memberIDs.count < 2 { rel.memberIDs.append("user_sam") }
-        try? await services.relationship.updateGamification(rel)
-        await loadSession()
+    func setAnniversary(_ date: Date) async {
+        guard let rel = relationship else { return }
+        try? await services.relationship.updateAnniversary(rel.id, date: date)
+        relationship?.anniversary = date
+        publishWidgetSnapshot()
     }
 
     // MARK: Today surface
