@@ -24,6 +24,9 @@ packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
     from: 8.0.0
+  Facebook:
+    url: https://github.com/facebook/facebook-ios-sdk
+    from: 18.0.0
 
 targets:
   Lovio:
@@ -45,6 +48,8 @@ targets:
         product: RevenueCat
       - package: GoogleSignIn
         product: GoogleSignIn
+      - package: Facebook
+        product: FacebookCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lovio.app
@@ -73,6 +78,16 @@ targets:
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
         FirebaseAppDelegateProxyEnabled: false
+        # Meta (Facebook) SDK — client token pending; SDK activation is guarded
+        # in MetaBootstrap until FacebookClientToken is non-empty.
+        FacebookAppID: "979262581823967"
+        FacebookClientToken: ""
+        FacebookDisplayName: Lovio
+        FacebookAutoLogAppEventsEnabled: true
+        FacebookAdvertiserIDCollectionEnabled: true
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - fb979262581823967
 
   LovioWidgets:
     type: app-extension

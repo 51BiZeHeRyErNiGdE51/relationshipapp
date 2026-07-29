@@ -112,11 +112,3 @@ public struct ConsoleAnalytics: AnalyticsClient {
     }
 }
 
-/// Placeholder adapter for the Meta (Facebook) SDK. Wire `FBSDKCoreKit`'s
-/// `AppEvents.shared.logEvent` here once the app has a Meta App ID; keep
-/// purchase/subscription events mirrored for Instagram ad attribution.
-public struct MetaAnalyticsAdapter: AnalyticsClient {
-    public init() {}
-    public func track(_ event: AnalyticsEvent) { /* AppEvents.shared.logEvent(...) */ }
-    public func setUserProperty(_ value: String?, forName name: String) {}
-}
