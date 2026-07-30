@@ -96,11 +96,41 @@ Every meaningful action appends `RelationshipEvent(kind, actorID, occurredAt, me
 - **Lovio** (app): links Firebase, RevenueCat, GoogleSignIn.
 - **LovioWidgets** (extension): links nothing external; compiles `Sources/Shared` for models, design tokens and the App Group bridge.
 
+## Monetization mechanics
+
+- **Secondary (decline) offer**: closing the paywall without buying starts a
+  7-day window (`lovio.secondaryOffer.firstDeclineAt` in UserDefaults) and
+  reroutes to a discounted offer (RevenueCat offering `secondary`). While the
+  window is open: Home shows a countdown chip, and two local pushes fire
+  (mid-window + last day). After 7 days only the main offers remain.
+- **Weekly premium nudge** for free users; all monetization reminders are
+  cancelled on purchase.
+- **Ads**: AdMob banner on Home for free users only (test IDs — swap
+  `GADApplicationIdentifier` in project.yml + `AdsManager.bannerUnitID`).
+
+## Age gate
+
+Date of birth (not a boolean) is stored locally and mirrored to the profile;
+age is recomputed every launch against `AppModel.minimumAge` (16). Underage
+users see a blocked screen with their eligibility date and are admitted
+automatically once old enough.
+
+## Push notifications
+
+- **Local**: daily question reminder, event reminders (day-before + day-of),
+  offer-window reminders, weekly premium nudge (`NotificationManager`).
+- **Server (firebase/functions)**: partner answered (+ both-answered unlock),
+  mood logged, miss-you / heart-tap, and a daily scheduler for tomorrow's
+  dates. Tokens flow: FCM delegate → UserDefaults → `ensureSession()` →
+  `users/{id}.fcmTokens` → functions fan-out.
+
 ## Known production TODOs
 
-- Cloud Functions: FCM fan-out (partner answered / mood / miss-you), streak rollups, RevenueCat webhook, yearly recap generation.
+- Deploy Cloud Functions (Blaze plan + APNs key required); add streak rollups,
+  RevenueCat webhook, yearly recap generation.
 - Storage upload pipeline for journal media (photo/video/voice) with thumbnail generation.
 - EventKit calendar sync behind the existing premium gate.
-- Facebook SDK: replace `MetaAnalyticsAdapter` stub once a Meta App ID exists.
-- Ads for the free tier (AdMob or similar) — deliberately not wired yet.
+- Replace AdMob test IDs with real ones; paste Google's full SKAdNetwork list.
 - Presence/battery/distance sync for widgets (currently placeholder values in the snapshot).
+- Enable Google Analytics on the Firebase project (plist shows IS_ANALYTICS_ENABLED=false)
+  and re-download GoogleService-Info.plist so GA4 events flow.

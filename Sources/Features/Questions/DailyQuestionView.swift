@@ -100,7 +100,7 @@ struct DailyQuestionView: View {
                 .foregroundStyle(Lovio.Gradients.hero)
                 .symbolEffect(.pulse)
 
-            Text("Sealed until \(model.partnerName.split(separator: " ").first.map(String.init) ?? "your partner") answers")
+            Text("Sealed until \(model.partnerFirstName ?? "your partner") answers")
                 .font(Lovio.Type_.headline)
 
             Text("We'll ping you the moment both answers unlock.")
@@ -244,7 +244,7 @@ struct MoodSheet: View {
                         }
                     }
 
-                    Button("Share with \(model.partnerName.split(separator: " ").first.map(String.init) ?? "partner")") {
+                    Button("Share with \(model.partnerFirstName ?? "your partner")") {
                         Task {
                             guard let me = model.user, let mood = selected else { return }
                             await model.logMood(MoodEntry(authorID: me.id, mood: mood,

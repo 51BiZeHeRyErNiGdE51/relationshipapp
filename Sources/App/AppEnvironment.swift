@@ -89,6 +89,13 @@ final class AppModel {
     var partnerName: String { partnerProfile?.displayName ?? "Your partner" }
     var myName: String { myProfile?.displayName ?? user?.displayName ?? "You" }
 
+    /// First names for copy. `partnerFirstName` is nil when unpaired so call
+    /// sites can choose their own fallback ("your partner", "Partner", …).
+    var myFirstName: String { myName.split(separator: " ").first.map(String.init) ?? "You" }
+    var partnerFirstName: String? {
+        partnerProfile?.displayName.split(separator: " ").first.map(String.init)
+    }
+
     // MARK: Session lifecycle
     //
     // Accountless by design: no email, no sign-up screen. First launch runs the
@@ -103,6 +110,18 @@ final class AppModel {
         services.analytics.track(.appOpened)
         await services.experiments.refresh()
 
+        // UI-test hook: jump straight past onboarding.
+        if ProcessInfo.processInfo.arguments.contains("-uitest-completed-onboarding") {
+            UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
+        }
+
+        // Age gate re-check: DOB is stored, age is computed live — someone who
+        // was 15 at signup is let in automatically the day they turn 16.
+        if let dob = Self.storedBirthday, Self.age(from: dob) < Self.minimumAge {
+            phase = .onboarding
+            return
+        }
+
         guard UserDefaults.standard.bool(forKey: Self.onboardingCompletedKey) else {
             services.analytics.track(.onboardingStarted)
             phase = .onboarding
@@ -110,6 +129,55 @@ final class AppModel {
         }
         await ensureSession()
         await drainWidgetOutbox()
+        NotificationManager.shared.scheduleWeeklyPremiumNudge(isPremium: premium.isPremium)
+    }
+
+    // MARK: Age gate (16+, computed from date of birth — never a stored boolean)
+
+    static let minimumAge = 16
+    private static let birthdayKey = "lovio.dateOfBirth"
+
+    static var storedBirthday: Date? {
+        UserDefaults.standard.object(forKey: birthdayKey) as? Date
+    }
+
+    static func age(from dob: Date) -> Int {
+        Calendar.current.dateComponents([.year], from: dob, to: .now).year ?? 0
+    }
+
+    /// Stores DOB and reports whether the user currently meets the minimum age.
+    @discardableResult
+    func submitBirthday(_ dob: Date) -> Bool {
+        UserDefaults.standard.set(dob, forKey: Self.birthdayKey)
+        return Self.age(from: dob) >= Self.minimumAge
+    }
+
+    // MARK: Secondary offer window (7 days from first paywall decline)
+
+    private static let offerDeclineKey = "lovio.secondaryOffer.firstDeclineAt"
+
+    var secondaryOfferDeadline: Date? {
+        guard let start = UserDefaults.standard.object(forKey: Self.offerDeclineKey) as? Date
+        else { return nil }
+        return start.addingTimeInterval(7 * 86_400)
+    }
+
+    var isSecondaryOfferActive: Bool {
+        guard !premium.isPremium else { return false }
+        guard let deadline = secondaryOfferDeadline else { return true } // not started yet
+        return deadline > .now
+    }
+
+    /// Called when a free user closes the paywall without buying. Starts the
+    /// 7-day discounted-offer window (once) and schedules reminder pushes.
+    func registerPaywallDecline() {
+        guard !premium.isPremium else { return }
+        if UserDefaults.standard.object(forKey: Self.offerDeclineKey) == nil {
+            UserDefaults.standard.set(Date(), forKey: Self.offerDeclineKey)
+        }
+        if let deadline = secondaryOfferDeadline, deadline > .now {
+            NotificationManager.shared.scheduleOfferReminders(deadline: deadline)
+        }
     }
 
     /// Guarantees: a signed-in user (anonymous if needed), a profile document,
@@ -128,6 +196,13 @@ final class AppModel {
             var profile = try await services.relationship.profile(for: user.id)
                 ?? UserProfile(id: user.id, displayName: user.displayName)
             profile.lastActiveAt = .now
+            profile.birthday = Self.storedBirthday ?? profile.birthday
+            // Register this device for partner-event pushes (Cloud Functions
+            // read users/{id}.fcmTokens to fan out notifications).
+            if let token = UserDefaults.standard.string(forKey: "lovio.fcm.token"),
+               !profile.fcmTokens.contains(token) {
+                profile.fcmTokens.append(token)
+            }
             try? await services.relationship.updateProfile(profile)
             myProfile = profile
 
@@ -216,6 +291,7 @@ final class AppModel {
         latestMoods = await moods ?? [:]
         upcomingDates = await dates ?? []
         publishWidgetSnapshot()
+        await NotificationManager.shared.scheduleEventReminders(dates: upcomingDates)
     }
 
     // MARK: Actions (each one feeds the relationship graph + gamification)
@@ -327,6 +403,7 @@ final class AppModel {
                     : .purchaseCompleted(offerID: offer.id))
                 Haptics.celebration()
                 publishWidgetSnapshot()
+                NotificationManager.shared.cancelMonetizationReminders()
             }
         } catch {
             errorMessage = error.localizedDescription

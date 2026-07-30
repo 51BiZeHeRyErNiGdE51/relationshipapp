@@ -88,12 +88,34 @@ struct RevenueCatPremiumService: PremiumService {
         }
     }
 
+    /// Discounted decline offer. Configure a RevenueCat offering with
+    /// identifier "secondary" holding one package (e.g. yearly at 50% off).
+    func secondaryOffer() async throws -> PaywallOffer? {
+        guard RevenueCatBootstrap.isConfigured else {
+            return try await DemoPremiumService().secondaryOffer()
+        }
+        let offerings = try await Purchases.shared.offerings()
+        guard let package = offerings.offering(identifier: "secondary")?.availablePackages.first
+        else { return nil }
+        let product = package.storeProduct
+        let months: Decimal = package.packageType == .annual ? 12 : 1
+        return PaywallOffer(id: package.identifier,
+                            title: package.packageType == .annual ? "Yearly — special offer" : "Special offer",
+                            monthlyEquivalent: product.price / months,
+                            totalPrice: product.price,
+                            currencyCode: product.currencyCode ?? "USD",
+                            trialDays: 0,
+                            isFeatured: true)
+    }
+
     func purchase(offerID: String, me: UserID, relationship: RelationshipID?) async throws -> PremiumState {
         guard RevenueCatBootstrap.isConfigured else {
             return try await DemoPremiumService().purchase(offerID: offerID, me: me, relationship: relationship)
         }
         let offerings = try await Purchases.shared.offerings()
-        guard let package = offerings.current?.availablePackages.first(where: { $0.identifier == offerID })
+        let allPackages = (offerings.current?.availablePackages ?? [])
+            + (offerings.offering(identifier: "secondary")?.availablePackages ?? [])
+        guard let package = allPackages.first(where: { $0.identifier == offerID })
         else { return .free }
 
         let result = try await Purchases.shared.purchase(package: package)

@@ -13,13 +13,17 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    DEVELOPMENT_TEAM: 2BHW8URYW7
+    CODE_SIGN_STYLE: Automatic
 
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     from: 12.0.0
   RevenueCat:
-    url: https://github.com/RevenueCat/purchases-ios
+    # Lightweight official mirror (binary-friendly, ~100x smaller checkout
+    # than purchases-ios). Same RevenueCat product.
+    url: https://github.com/RevenueCat/purchases-ios-spm
     from: 5.0.0
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
@@ -27,6 +31,9 @@ packages:
   Facebook:
     url: https://github.com/facebook/facebook-ios-sdk
     from: 18.0.0
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads
+    from: 12.0.0
 
 targets:
   Lovio:
@@ -50,6 +57,8 @@ targets:
         product: GoogleSignIn
       - package: Facebook
         product: FacebookCore
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bsekapps.lovio
@@ -78,16 +87,29 @@ targets:
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
         FirebaseAppDelegateProxyEnabled: false
-        # Meta (Facebook) SDK — client token pending; SDK activation is guarded
-        # in MetaBootstrap until FacebookClientToken is non-empty.
+        # Meta (Facebook) SDK
         FacebookAppID: "979262581823967"
-        FacebookClientToken: ""
+        FacebookClientToken: "1b520885a9114034b880f96321902e7f"
         FacebookDisplayName: Lovio
         FacebookAutoLogAppEventsEnabled: true
         FacebookAdvertiserIDCollectionEnabled: true
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - fb979262581823967
+        # AdMob — Google's official TEST app ID. Replace with the real one from
+        # apps.admob.com before release (also swap unit IDs in AdsManager.swift).
+        GADApplicationIdentifier: "ca-app-pub-3940256099942544~1458002511"
+        # Minimal SKAdNetwork set (Google + majors). Paste Google's full
+        # published list before App Store release for best ad attribution.
+        SKAdNetworkItems:
+          - SKAdNetworkIdentifier: cstr6suwn9.skadnetwork
+          - SKAdNetworkIdentifier: 4fzdc2evr5.skadnetwork
+          - SKAdNetworkIdentifier: 2fnua5tdw4.skadnetwork
+          - SKAdNetworkIdentifier: ydx93a7ass.skadnetwork
+          - SKAdNetworkIdentifier: v72qych5uu.skadnetwork
+          - SKAdNetworkIdentifier: 4468km3ulz.skadnetwork
+          - SKAdNetworkIdentifier: 7ug5zh24hu.skadnetwork
+          - SKAdNetworkIdentifier: 9rd848q2bz.skadnetwork
 
   LovioWidgets:
     type: app-extension

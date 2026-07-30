@@ -10,9 +10,13 @@ struct PaywallView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let source: String
+    /// Opens directly on the discounted decline offer (e.g. from the Home chip).
+    var startOnSecondary: Bool = false
 
     @State private var offers: [PaywallOffer] = []
     @State private var selected: PaywallOffer?
+    @State private var secondaryOffer: PaywallOffer?
+    @State private var showSecondary = false
     @State private var isPurchasing = false
 
     private var headline: String {
@@ -22,17 +26,54 @@ struct PaywallView: View {
         }
     }
 
+    /// Close: first decline reroutes to the secondary offer (while its 7-day
+    /// window is open); closing that — or an expired window — really dismisses.
+    private func handleClose() {
+        if !showSecondary, !model.premium.isPremium,
+           model.isSecondaryOfferActive, secondaryOffer != nil {
+            model.registerPaywallDecline()   // starts the 7-day window on first decline
+            withAnimation(.smooth) { showSecondary = true }
+            model.services.analytics.track(.paywallImpression(
+                source: "secondary_offer", variant: "decline"))
+        } else {
+            if !model.premium.isPremium { model.registerPaywallDecline() }
+            dismiss()
+        }
+    }
+
     var body: some View {
         ZStack {
             Lovio.Gradients.hero.ignoresSafeArea()
-                .overlay(.black.opacity(0.15))
+                .overlay(.black.opacity(showSecondary ? 0.35 : 0.15))
 
+            if showSecondary, let offer = secondaryOffer {
+                secondaryOfferContent(offer)
+            } else {
+                mainContent
+            }
+        }
+        .task {
+            model.services.analytics.track(.paywallImpression(
+                source: source,
+                variant: model.services.experiments.variant(for: "paywall_headline")))
+            offers = (try? await model.services.premium.offers()) ?? []
+            selected = offers.first { $0.isFeatured } ?? offers.first
+            secondaryOffer = try? await model.services.premium.secondaryOffer()
+            if startOnSecondary, model.isSecondaryOfferActive, secondaryOffer != nil {
+                showSecondary = true
+            }
+        }
+    }
+
+    // MARK: Main paywall
+
+    private var mainContent: some View {
             ScrollView {
                 VStack(spacing: 24) {
                     HStack {
                         Spacer()
                         Button {
-                            dismiss()
+                            handleClose()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.title2)
@@ -52,7 +93,7 @@ struct PaywallView: View {
                             .multilineTextAlignment(.center)
                             .minimumScaleFactor(0.7)
 
-                        Text("You subscribe once — \(model.partnerName.split(separator: " ").first.map(String.init) ?? "your partner") gets everything free. Premium belongs to the relationship.")
+                        Text("You subscribe once — \(model.partnerFirstName ?? "your partner") gets everything free. Premium belongs to the relationship.")
                             .font(Lovio.Type_.body)
                             .foregroundStyle(.white.opacity(0.85))
                             .multilineTextAlignment(.center)
@@ -132,14 +173,96 @@ struct PaywallView: View {
                 }
                 .padding(Lovio.Metrics.screenPadding)
             }
+    }
+
+    // MARK: Secondary offer ("wait — a gift for you two")
+
+    private func secondaryOfferContent(_ offer: PaywallOffer) -> some View {
+        VStack(spacing: 22) {
+            HStack {
+                Spacer()
+                Button { handleClose() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: "gift.fill")
+                .font(.system(size: 54))
+                .foregroundStyle(Lovio.Palette.gold)
+                .shadow(color: Lovio.Palette.gold.opacity(0.6), radius: 18)
+
+            Text("Wait — a gift\nfor you two 💝")
+                .font(Lovio.Type_.display)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.7)
+
+            Text("One time only: \(offer.title.lowercased()) — that's \(offer.formattedPerWeekPerPerson()) per week, per person. Still covers both of you.")
+                .font(Lovio.Type_.body)
+                .foregroundStyle(.white.opacity(0.85))
+                .multilineTextAlignment(.center)
+
+            if let deadline = model.secondaryOfferDeadline {
+                Label {
+                    Text("Offer ends \(deadline, style: .relative) from now")
+                } icon: {
+                    Image(systemName: "clock.fill")
+                }
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(Lovio.Palette.gold)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(.white.opacity(0.12)))
+            }
+
+            VStack(spacing: 4) {
+                Text(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))
+                    .font(.system(size: 40, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("per year · both partners included")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .padding(.vertical, 18)
+            .frame(maxWidth: .infinity)
+            .background {
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.white.opacity(0.12))
+                    .overlay(RoundedRectangle(cornerRadius: 24)
+                        .strokeBorder(Lovio.Palette.gold, lineWidth: 2))
+            }
+
+            Button {
+                isPurchasing = true
+                Task {
+                    await model.purchase(offer: offer)
+                    isPurchasing = false
+                    if model.premium.isPremium { dismiss() }
+                }
+            } label: {
+                Group {
+                    if isPurchasing { ProgressView().tint(Lovio.Palette.plum) }
+                    else { Text("Claim our offer") }
+                }
+                .font(Lovio.Type_.headline)
+                .foregroundStyle(Lovio.Palette.plum)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Capsule().fill(.white))
+            }
+            .disabled(isPurchasing)
+
+            Button("No thanks") { handleClose() }
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(.white.opacity(0.55))
+
+            Spacer()
         }
-        .task {
-            model.services.analytics.track(.paywallImpression(
-                source: source,
-                variant: model.services.experiments.variant(for: "paywall_headline")))
-            offers = (try? await model.services.premium.offers()) ?? []
-            selected = offers.first { $0.isFeatured } ?? offers.first
-        }
+        .padding(Lovio.Metrics.screenPadding)
     }
 
     private func feature(_ symbol: String, _ text: String) -> some View {

@@ -152,7 +152,7 @@ struct UsView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Lovio Premium — for both of you")
                             .font(Lovio.Type_.headline)
-                        Text("One subscription covers you and \(model.partnerName.split(separator: " ").first.map(String.init) ?? "your partner")")
+                        Text("One subscription covers you and \(model.partnerFirstName ?? "your partner")")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.secondary)
                     }

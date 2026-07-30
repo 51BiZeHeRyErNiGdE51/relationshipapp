@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var showQuestion = false
     @State private var missYouBurst = false
     @State private var showJoinSheet = false
+    @State private var showOfferPaywall = false
 
     var body: some View {
         ScrollView {
@@ -23,6 +24,10 @@ struct HomeView: View {
                 companionCard
                 nextEventCard
                 aiTeaserCard
+                offerChip
+                if !model.premium.isPremium {
+                    AdBannerCard()
+                }
             }
             .padding(.horizontal, Lovio.Metrics.screenPadding)
             .padding(.bottom, 32)
@@ -37,7 +42,37 @@ struct HomeView: View {
         .sheet(isPresented: $showMoodSheet) { MoodSheet() }
         .sheet(isPresented: $showQuestion) { DailyQuestionView() }
         .sheet(isPresented: $showJoinSheet) { JoinPartnerSheet() }
+        .sheet(isPresented: $showOfferPaywall) {
+            PaywallView(source: "home_offer_chip", startOnSecondary: true)
+        }
         .refreshable { await model.refreshToday() }
+    }
+
+    // MARK: Secondary-offer reminder chip (in-app companion to the push nudges)
+
+    @ViewBuilder
+    private var offerChip: some View {
+        if !model.premium.isPremium,
+           let deadline = model.secondaryOfferDeadline, deadline > .now {
+            Button { showOfferPaywall = true } label: {
+                GlassCard(tint: Lovio.Palette.gold) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gift.fill")
+                            .foregroundStyle(Lovio.Palette.gold)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Your 50% couple's offer")
+                                .font(Lovio.Type_.headline)
+                            Text("Ends \(deadline, style: .relative) from now")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: Pairing card (solo mode)
@@ -91,7 +126,7 @@ struct HomeView: View {
             AvatarPair(left: model.myProfile?.initials ?? "Y",
                        right: model.partnerProfile?.initials ?? "L", size: 48)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(model.myName.split(separator: " ").first.map(String.init) ?? "") & \(model.partnerName.split(separator: " ").first.map(String.init) ?? "")")
+                Text(model.partnerFirstName.map { "\(model.myFirstName) & \($0)" } ?? model.myFirstName)
                     .font(Lovio.Type_.headline)
                 Text(greeting)
                     .font(Lovio.Type_.caption)
@@ -188,7 +223,7 @@ struct HomeView: View {
             } else if state.myAnswer != nil {
                 Label("Waiting", systemImage: "hourglass")
             } else if state.partnerHasAnswered {
-                Label("\(model.partnerName.split(separator: " ").first.map(String.init) ?? "Partner") answered!", systemImage: "sparkles")
+                Label("\(model.partnerFirstName ?? "Partner") answered!", systemImage: "sparkles")
             }
         }
         .font(Lovio.Type_.caption)
@@ -210,8 +245,7 @@ struct HomeView: View {
                 HStack(spacing: 18) {
                     moodBubble(name: "You", entry: model.user.flatMap { model.latestMoods[$0.id] })
                     Divider().frame(height: 44)
-                    moodBubble(name: model.partnerName.split(separator: " ").first.map(String.init) ?? "Partner",
-                               entry: partnerMood)
+                    moodBubble(name: model.partnerFirstName ?? "Partner", entry: partnerMood)
                     Spacer()
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)

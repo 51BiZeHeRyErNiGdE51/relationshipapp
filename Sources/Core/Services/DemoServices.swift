@@ -369,6 +369,12 @@ public struct DemoPremiumService: PremiumService {
         ]
     }
 
+    public func secondaryOffer() async throws -> PaywallOffer? {
+        PaywallOffer(id: "lovio_yearly_offer", title: "Yearly — 50% off",
+                     monthlyEquivalent: 2.50, totalPrice: 29.99,
+                     currencyCode: "USD", trialDays: 0, isFeatured: true)
+    }
+
     public func purchase(offerID: String, me: UserID, relationship: RelationshipID?) async throws -> PremiumState {
         await DemoStore.shared.setPremiumPurchaser(me)
         return PremiumState(isPremium: true,

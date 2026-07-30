@@ -148,6 +148,9 @@ public protocol PremiumService: Sendable {
     /// an active entitlement. Purchaser keeps premium across relationships.
     func premiumState(relationship: Relationship?, me: UserID) async -> PremiumState
     func offers() async throws -> [PaywallOffer]
+    /// Discounted "wait, don't go" offer shown after a paywall decline,
+    /// valid for 7 days from the first decline. RevenueCat: offering "secondary".
+    func secondaryOffer() async throws -> PaywallOffer?
     func purchase(offerID: String, me: UserID, relationship: RelationshipID?) async throws -> PremiumState
     func restorePurchases(me: UserID) async throws -> PremiumState
 }
