@@ -10,8 +10,14 @@ import UIKit
 // entry point ("Remove ads").
 
 enum AdsManager {
-    /// TEST banner unit. Replace with your real unit from apps.admob.com.
+    #if DEBUG
+    /// Google's official test banner in debug builds — clicking your own real
+    /// ads violates AdMob policy and can get the account suspended.
     static let bannerUnitID = "ca-app-pub-3940256099942544/2934735716"
+    #else
+    /// Production banner unit (bsekapps).
+    static let bannerUnitID = "ca-app-pub-8078875407027697/9269412510"
+    #endif
 
     private static var isStarted = false
 

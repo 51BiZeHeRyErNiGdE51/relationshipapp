@@ -13,6 +13,7 @@ public enum AnalyticsEvent: Sendable {
     case invitationCreated
     case invitationRedeemed
     case relationshipActivated
+    case relationshipEnded
 
     // Engagement
     case questionViewed(category: String)
@@ -45,6 +46,7 @@ public enum AnalyticsEvent: Sendable {
         case .invitationCreated: "invitation_created"
         case .invitationRedeemed: "invitation_redeemed"
         case .relationshipActivated: "relationship_activated"
+        case .relationshipEnded: "relationship_ended"
         case .questionViewed: "question_viewed"
         case .questionAnswered: "question_answered"
         case .answersRevealed: "answers_revealed"

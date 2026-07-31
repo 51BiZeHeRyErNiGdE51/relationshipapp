@@ -130,6 +130,56 @@ public struct WidgetSnapshot: Codable, Sendable {
         lastMemoryTitle: "Sunset picnic at the pier", lastMemoryDate: Date().addingTimeInterval(-86400 * 3))
 }
 
+// MARK: - User-authored widget content (photo + note)
+//
+// The Widgets tab lets a user push a photo and a love note straight onto the
+// home screen. Stored in the App Group so the extension can read them.
+
+public enum WidgetContent {
+    private static let noteKey = "lovio.widget.note"
+    private static let photoFileName = "widget_photo.jpg"
+
+    public static var note: String? {
+        AppGroup.defaults.string(forKey: noteKey)
+    }
+
+    public static func saveNote(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        AppGroup.defaults.set(trimmed.isEmpty ? nil : trimmed, forKey: noteKey)
+        // A fresh note re-seals the Secret Message widget.
+        AppGroup.defaults.removeObject(forKey: "lovio.secret.revealed")
+        reloadTimelines()
+    }
+
+    public static var photoURL: URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier)?
+            .appendingPathComponent(photoFileName)
+    }
+
+    /// Expects pre-downscaled JPEG data (widgets have tight memory limits).
+    public static func savePhoto(_ data: Data) {
+        guard let url = photoURL else { return }
+        try? data.write(to: url, options: .atomic)
+        AppGroup.defaults.set(Date(), forKey: "lovio.widget.photo.updatedAt")
+        reloadTimelines()
+    }
+
+    public static func loadPhoto() -> Data? {
+        photoURL.flatMap { try? Data(contentsOf: $0) }
+    }
+
+    public static var hasPhoto: Bool {
+        photoURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+    }
+
+    private static func reloadTimelines() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
+    }
+}
+
 // MARK: - Outbox: widget → app messages
 //
 // Interactive widgets (Miss You, Heart Tap) enqueue lightweight actions here;

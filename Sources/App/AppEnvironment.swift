@@ -257,6 +257,19 @@ final class AppModel {
 
     // MARK: Pairing
 
+    /// Disconnects from the current partner but keeps the account (and any
+    /// premium entitlement, which belongs to the purchaser). A fresh pending
+    /// relationship with a new invite code is created immediately.
+    func unpair() async {
+        guard let rel = relationship, let me = user, isPaired else { return }
+        try? await services.relationship.endRelationship(rel.id, endedBy: me.id)
+        services.analytics.track(.relationshipEnded)
+        partnerProfile = nil
+        relationship = try? await services.relationship.createRelationship(creator: me.id, anniversary: nil)
+        premium = await services.premium.premiumState(relationship: relationship, me: me.id)
+        await refreshToday()
+    }
+
     func joinRelationship(code: String) async {
         guard let user else { return }
         do {
@@ -410,6 +423,12 @@ final class AppModel {
         }
     }
 
+    func refreshPremium() async {
+        guard let user else { return }
+        premium = await services.premium.premiumState(relationship: relationship, me: user.id)
+        publishWidgetSnapshot()
+    }
+
     func restorePurchases() async {
         guard let user else { return }
         if let state = try? await services.premium.restorePurchases(me: user.id) {
@@ -447,7 +466,7 @@ final class AppModel {
             bothRecentlyActive: true,
             nextEventTitle: nextDate?.title, 
             nextEventDate: nextDate.map { Calendar.current.date(byAdding: .day, value: $0.daysUntil, to: .now) ?? $0.date },
-            latestNote: "Can't stop thinking about Saturday 🤍",
+            latestNote: WidgetContent.note,
             missYouCountToday: 3,
             heartsInJar: 100 + rel.xp / 25,
             companionKind: rel.companion.kind.rawValue,

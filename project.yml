@@ -70,13 +70,13 @@ targets:
     info:
       path: Config/Lovio-Info.plist
       properties:
-        CFBundleDisplayName: Lovio
+        CFBundleDisplayName: Missuo
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
-        NSUserTrackingUsageDescription: "We use this to measure ads and improve Lovio. Your relationship data is never sold."
+        NSUserTrackingUsageDescription: "We use this to measure ads and improve Missuo. Your relationship data is never sold."
         NSPhotoLibraryUsageDescription: "Add photos to your shared journal and widgets."
         NSCameraUsageDescription: "Capture moments together directly into your journal."
         NSMicrophoneUsageDescription: "Record voice memories for your partner."
@@ -90,15 +90,14 @@ targets:
         # Meta (Facebook) SDK
         FacebookAppID: "979262581823967"
         FacebookClientToken: "1b520885a9114034b880f96321902e7f"
-        FacebookDisplayName: Lovio
+        FacebookDisplayName: Missuo
         FacebookAutoLogAppEventsEnabled: true
         FacebookAdvertiserIDCollectionEnabled: true
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - fb979262581823967
-        # AdMob — Google's official TEST app ID. Replace with the real one from
-        # apps.admob.com before release (also swap unit IDs in AdsManager.swift).
-        GADApplicationIdentifier: "ca-app-pub-3940256099942544~1458002511"
+        # AdMob production app ID (bsekapps).
+        GADApplicationIdentifier: "ca-app-pub-8078875407027697~8878796208"
         # Minimal SKAdNetwork set (Google + majors). Paste Google's full
         # published list before App Store release for best ad attribution.
         SKAdNetworkItems:
@@ -127,7 +126,7 @@ targets:
     info:
       path: Config/LovioWidgets-Info.plist
       properties:
-        CFBundleDisplayName: Lovio Widgets
+        CFBundleDisplayName: Missuo Widgets
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 

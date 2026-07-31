@@ -26,6 +26,54 @@ struct LoveDaysWidget: Widget {
     }
 }
 
+// MARK: - Polaroid (user-sent photo + note)
+
+struct PolaroidWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "polaroid", provider: SnapshotProvider()) { entry in
+            polaroidBody(entry: entry)
+        }
+        .configurationDisplayName("Polaroid")
+        .description("A photo you two chose, right on the home screen.")
+        .supportedFamilies([.systemSmall, .systemLarge])
+    }
+
+    @ViewBuilder
+    private func polaroidBody(entry: SnapshotEntry) -> some View {
+        if let data = WidgetContent.loadPhoto(), let image = UIImage(data: data) {
+            ZStack(alignment: .bottomLeading) {
+                Color.clear
+                if let note = entry.snapshot.latestNote, !note.isEmpty {
+                    Text(note)
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+                        .padding(8)
+                }
+            }
+            .containerBackground(for: .widget) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            }
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.title2)
+                    .foregroundStyle(Lovio.Palette.peach)
+                Text("Send a photo from the Widgets tab in Missuo")
+                    .font(.system(.caption, design: .rounded, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+            }
+            .lovioWidgetContainer()
+        }
+    }
+}
+
 // MARK: - Love Pulse (heartbeat when both online)
 
 struct LovePulseWidget: Widget {
@@ -82,7 +130,7 @@ struct OpenQuestionWidget: Widget {
                             .foregroundStyle(Lovio.Palette.gold)
                     }
                 }
-                Text(entry.snapshot.todayQuestion ?? "Open Lovio for today's question")
+                Text(entry.snapshot.todayQuestion ?? "Open Missuo for today's question")
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(3)
@@ -217,7 +265,7 @@ struct SecretMessageWidget: Widget {
                           systemImage: revealed ? "envelope.open.fill" : "envelope.fill")
                         .font(.system(.caption2, design: .rounded, weight: .bold))
                         .foregroundStyle(Lovio.Palette.gold)
-                    Text(entry.snapshot.latestNote ?? "No note yet — send one from Lovio")
+                    Text(entry.snapshot.latestNote ?? "No note yet — send one from Missuo")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.white)
                         .blur(radius: revealed ? 0 : 7)
@@ -286,7 +334,7 @@ struct HugMeterWidget: Widget {
                         .foregroundStyle(.white.opacity(0.75))
                         .multilineTextAlignment(.center)
                 } else {
-                    Text("Log a meetup in Lovio")
+                    Text("Log a meetup in Missuo")
                         .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.white.opacity(0.75))
                 }

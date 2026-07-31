@@ -5,6 +5,7 @@ import SwiftUI
 struct UsView: View {
     @Environment(AppModel.self) private var model
     @State private var showPaywall = false
+    @State private var showUnpair = false
 
     var body: some View {
         ScrollView {
@@ -19,10 +20,10 @@ struct UsView: View {
                 levelCard
                 achievementsCard
 
-                NavigationLink { WidgetGalleryView() } label: {
-                    rowCard(symbol: "square.grid.2x2.fill", tint: Lovio.Palette.lavender,
-                            title: "Widget Gallery",
-                            subtitle: "Put Lovio on your home screen — the app that loves you back")
+                NavigationLink { PlayView() } label: {
+                    rowCard(symbol: "gamecontroller.fill", tint: Lovio.Palette.lavender,
+                            title: "Couple Games",
+                            subtitle: "Quizzes, challenges and games for two")
                 }
                 .buttonStyle(.plain)
 
@@ -47,12 +48,29 @@ struct UsView: View {
                             subtitle: "Profile, notifications, privacy, account")
                 }
                 .buttonStyle(.plain)
+
+                if model.isPaired {
+                    Button { showUnpair = true } label: {
+                        rowCard(symbol: "person.2.slash.fill", tint: .red,
+                                title: "Unpair from \(model.partnerFirstName ?? "partner")",
+                                subtitle: "Disconnect this relationship — your account stays")
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(Lovio.Metrics.screenPadding)
         }
         .scrollIndicators(.hidden)
         .navigationTitle("Us")
         .sheet(isPresented: $showPaywall) { PaywallView(source: "us_tab") }
+        .confirmationDialog("Unpair from \(model.partnerName)?",
+                            isPresented: $showUnpair, titleVisibility: .visible) {
+            Button("Unpair", role: .destructive) {
+                Task { await model.unpair() }
+            }
+        } message: {
+            Text("You'll get a fresh invite code and can pair again anytime. If you purchased Premium, it stays with you.")
+        }
     }
 
     private var coupleHeader: some View {
@@ -150,7 +168,7 @@ struct UsView: View {
                         .font(.title2)
                         .foregroundStyle(Lovio.Palette.gold)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Lovio Premium — for both of you")
+                        Text("Missuo Premium — for both of you")
                             .font(Lovio.Type_.headline)
                         Text("One subscription covers you and \(model.partnerFirstName ?? "your partner")")
                             .font(Lovio.Type_.caption)

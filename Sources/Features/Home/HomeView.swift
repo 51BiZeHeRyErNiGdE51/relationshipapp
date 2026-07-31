@@ -17,10 +17,10 @@ struct HomeView: View {
         ScrollView {
             VStack(spacing: 16) {
                 header
-                pairCard
-                streakAndDaysRow
+                if model.isPaired { coupleHero } else { pairingHero }
                 questionCard
                 moodRow
+                widgetPromoCard
                 companionCard
                 nextEventCard
                 aiTeaserCard
@@ -75,47 +75,120 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Pairing card (solo mode)
+    // MARK: Hero — paired
     //
-    // Users can enter the app without a partner; connecting stays one tap away.
+    // One card that makes the relationship feel like a living thing:
+    // days counter front and center, streak + love score as satellites.
 
-    @ViewBuilder
-    private var pairCard: some View {
-        if !model.isPaired {
-            GlassCard(tint: Lovio.Palette.rose) {
-                VStack(spacing: 12) {
-                    Label("Lovio is better with your person", systemImage: "heart.text.square.fill")
-                        .font(Lovio.Type_.headline)
-                        .foregroundStyle(Lovio.Palette.rose)
-
-                    Text(model.relationship?.inviteCode?.display ?? "· · · · · ·")
-                        .font(.system(size: 34, weight: .heavy, design: .monospaced))
-                        .foregroundStyle(Lovio.Gradients.hero)
-
-                    HStack(spacing: 10) {
-                        if let code = model.relationship?.inviteCode?.value {
-                            ShareLink(item: "Join me on Lovio 💞 My code: \(code)") {
-                                Label("Share code", systemImage: "square.and.arrow.up")
-                                    .font(Lovio.Type_.caption)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(Capsule().fill(.ultraThinMaterial))
-                            }
-                        }
-                        Button {
-                            showJoinSheet = true
-                        } label: {
-                            Label("Enter their code", systemImage: "keyboard")
-                                .font(Lovio.Type_.caption)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(Capsule().fill(.ultraThinMaterial))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-                .frame(maxWidth: .infinity)
+    private var coupleHero: some View {
+        VStack(spacing: 16) {
+            HStack {
+                AvatarPair(left: model.myProfile?.initials ?? "Y",
+                           right: model.partnerProfile?.initials ?? "L", size: 44)
+                Spacer()
+                HeartPulse(size: 26)
             }
+
+            VStack(spacing: 2) {
+                Text("\(model.relationship?.daysTogether ?? 0)")
+                    .font(.system(size: 56, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
+                Text("days of \(model.myFirstName) & \(model.partnerFirstName ?? "you")")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+
+            HStack(spacing: 10) {
+                heroChip(symbol: "flame.fill",
+                         value: "\(model.relationship?.streak.current ?? 0)",
+                         label: "streak")
+                heroChip(symbol: "heart.fill",
+                         value: "\(model.relationship?.loveScore ?? 0)",
+                         label: "love score")
+                heroChip(symbol: "rosette",
+                         value: "\(model.relationship?.level ?? 1)",
+                         label: "level")
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background {
+            RoundedRectangle(cornerRadius: Lovio.Metrics.cornerRadius)
+                .fill(Lovio.Gradients.hero)
+                .shadow(color: Lovio.Palette.rose.opacity(0.35), radius: 18, y: 8)
+        }
+    }
+
+    private func heroChip(symbol: String, value: String, label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.caption)
+            Text(value).font(.system(.subheadline, design: .rounded, weight: .heavy))
+            Text(label).font(.system(.caption2, design: .rounded))
+                .opacity(0.8)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(.white.opacity(0.18)))
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Hero — solo (pairing)
+    //
+    // Users can enter the app without a partner; connecting stays one tap
+    // away. This card disappears the moment a partner joins.
+
+    private var pairingHero: some View {
+        VStack(spacing: 14) {
+            HeartPulse(size: 34)
+
+            Text("Missuo is better with your person")
+                .font(Lovio.Type_.title)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+
+            Text("Share your code — it takes them 30 seconds to join.")
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(.white.opacity(0.8))
+
+            Text(model.relationship?.inviteCode?.display ?? "· · · · · ·")
+                .font(.system(size: 38, weight: .heavy, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.15)))
+
+            HStack(spacing: 10) {
+                if let code = model.relationship?.inviteCode?.value {
+                    ShareLink(item: "Join me on Missuo 💞 My code: \(code)") {
+                        Label("Share code", systemImage: "square.and.arrow.up")
+                            .font(Lovio.Type_.caption.weight(.semibold))
+                            .foregroundStyle(Lovio.Palette.plum)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Capsule().fill(.white))
+                    }
+                }
+                Button {
+                    showJoinSheet = true
+                } label: {
+                    Label("Enter their code", systemImage: "keyboard")
+                        .font(Lovio.Type_.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Capsule().fill(.white.opacity(0.2)))
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background {
+            RoundedRectangle(cornerRadius: Lovio.Metrics.cornerRadius)
+                .fill(Lovio.Gradients.hero)
+                .shadow(color: Lovio.Palette.rose.opacity(0.35), radius: 18, y: 8)
         }
     }
 
@@ -123,12 +196,10 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            AvatarPair(left: model.myProfile?.initials ?? "Y",
-                       right: model.partnerProfile?.initials ?? "L", size: 48)
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.partnerFirstName.map { "\(model.myFirstName) & \($0)" } ?? model.myFirstName)
-                    .font(Lovio.Type_.headline)
                 Text(greeting)
+                    .font(Lovio.Type_.headline)
+                Text(Date.now.formatted(date: .complete, time: .omitted))
                     .font(Lovio.Type_.caption)
                     .foregroundStyle(.secondary)
             }
@@ -151,37 +222,28 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Streak + Love Days
+    // MARK: Widgets promo — the flagship surface deserves a Home entry point
 
-    private var streakAndDaysRow: some View {
-        HStack(spacing: 12) {
-            GlassCard(tint: Lovio.Palette.gold) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Streak", systemImage: "flame.fill")
-                        .font(Lovio.Type_.caption)
-                        .foregroundStyle(Lovio.Palette.gold)
-                    Text("\(model.relationship?.streak.current ?? 0)")
-                        .font(Lovio.Type_.numeric)
-                        .contentTransition(.numericText())
-                    Text("days in a row")
-                        .font(Lovio.Type_.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            GlassCard(tint: Lovio.Palette.rose) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Together", systemImage: "heart.fill")
-                        .font(Lovio.Type_.caption)
-                        .foregroundStyle(Lovio.Palette.rose)
-                    Text("\(model.relationship?.daysTogether ?? 0)")
-                        .font(Lovio.Type_.numeric)
-                        .contentTransition(.numericText())
-                    Text("days of us")
-                        .font(Lovio.Type_.caption)
-                        .foregroundStyle(.secondary)
+    private var widgetPromoCard: some View {
+        NavigationLink { WidgetGalleryView() } label: {
+            GlassCard(tint: Lovio.Palette.peach) {
+                HStack(spacing: 14) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.title2)
+                        .foregroundStyle(Lovio.Palette.peach)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Send a photo to your widgets")
+                            .font(Lovio.Type_.headline)
+                        Text("Your moments on the home screen, all day")
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                 }
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: Daily question

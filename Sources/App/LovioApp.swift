@@ -142,7 +142,7 @@ final class NotificationManager {
             if midpoint > .now {
                 await schedule(id: "offer_reminder_mid",
                                title: "Your couple's offer is waiting 💝",
-                               body: "50% off Lovio Premium — for both of you. A few days left.",
+                               body: "50% off Missuo Premium — for both of you. A few days left.",
                                at: midpoint, hour: 19)
             }
             if lastCall > .now {

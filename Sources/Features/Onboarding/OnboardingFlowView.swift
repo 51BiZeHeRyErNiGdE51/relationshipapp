@@ -137,7 +137,7 @@ struct AgeGateView: View {
             if isUnderage {
                 Text("See you soon 💛")
                     .font(Lovio.Type_.largeTitle)
-                Text("Lovio is for people aged \(AppModel.minimumAge) and up. Based on the birthday you entered, you can join on \(sixteenthBirthday.formatted(date: .long, time: .omitted)) — we'll be here.")
+                Text("Missuo is for people aged \(AppModel.minimumAge) and up. Based on the birthday you entered, you can join on \(sixteenthBirthday.formatted(date: .long, time: .omitted)) — we'll be here.")
                     .font(Lovio.Type_.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -151,7 +151,7 @@ struct AgeGateView: View {
             } else {
                 Text("When were you born?")
                     .font(Lovio.Type_.largeTitle)
-                Text("Lovio is for ages \(AppModel.minimumAge)+. We use your birthday only for this check and for anniversary magic later.")
+                Text("Missuo is for ages \(AppModel.minimumAge)+. We use your birthday only for this check and for anniversary magic later.")
                     .font(Lovio.Type_.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -226,7 +226,7 @@ struct PairingStepView: View {
                 .font(Lovio.Type_.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Enter Lovio") {
+            Button("Enter Missuo") {
                 Task { await model.completeOnboarding(partnerCode: nil) }
             }
             .buttonStyle(LovioPrimaryButtonStyle())
@@ -237,7 +237,7 @@ struct PairingStepView: View {
         VStack(spacing: 18) {
             Text("Bring your person in")
                 .font(Lovio.Type_.largeTitle)
-            Text("Lovio works as a pair — iPhone or Android. Share your code, or enter theirs. You can also do this later.")
+            Text("Missuo works as a pair — iPhone or Android. Share your code, or enter theirs. You can also do this later.")
                 .font(Lovio.Type_.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -252,7 +252,7 @@ struct PairingStepView: View {
                         .font(.system(size: 38, weight: .heavy, design: .monospaced))
                         .foregroundStyle(Lovio.Gradients.hero)
                     if let code = model.relationship?.inviteCode?.value {
-                        ShareLink(item: "Join me on Lovio 💞 My code: \(code)") {
+                        ShareLink(item: "Join me on Missuo 💞 My code: \(code)") {
                             Label("Share with your partner", systemImage: "square.and.arrow.up")
                                 .font(Lovio.Type_.headline)
                         }
@@ -302,7 +302,7 @@ struct PairingStepView: View {
                 if isWorking {
                     ProgressView().tint(.white)
                 } else {
-                    Text(partnerCode.count >= 6 ? "Connect & enter Lovio" : "Skip for now")
+                    Text(partnerCode.count >= 6 ? "Connect & enter Missuo" : "Skip for now")
                 }
             }
             .buttonStyle(LovioPrimaryButtonStyle())

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Lovio</string>
+	<string>Missuo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -38,11 +38,11 @@
 	<key>FacebookClientToken</key>
 	<string>1b520885a9114034b880f96321902e7f</string>
 	<key>FacebookDisplayName</key>
-	<string>Lovio</string>
+	<string>Missuo</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-8078875407027697~8878796208</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
@@ -62,7 +62,7 @@
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>We use this to measure ads and improve Lovio. Your relationship data is never sold.</string>
+	<string>We use this to measure ads and improve Missuo. Your relationship data is never sold.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

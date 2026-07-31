@@ -35,6 +35,12 @@ struct RevenueCatPremiumService: PremiumService {
     private var db: Firestore { Firestore.firestore() }
 
     func premiumState(relationship: Relationship?, me: UserID) async -> PremiumState {
+        // Fake-purchase mode while RevenueCat is not wired: state persists
+        // locally so paid/unpaid flows are fully testable.
+        guard RevenueCatBootstrap.isConfigured else {
+            return await DemoPremiumService().premiumState(relationship: relationship, me: me)
+        }
+
         // 1. My own entitlement (purchaser keeps premium across relationships).
         if RevenueCatBootstrap.isConfigured,
            let info = try? await Purchases.shared.customerInfo(),
@@ -132,7 +138,9 @@ struct RevenueCatPremiumService: PremiumService {
     }
 
     func restorePurchases(me: UserID) async throws -> PremiumState {
-        guard RevenueCatBootstrap.isConfigured else { return .free }
+        guard RevenueCatBootstrap.isConfigured else {
+            return try await DemoPremiumService().restorePurchases(me: me)
+        }
         let info = try await Purchases.shared.restorePurchases()
         guard let entitlement = info.entitlements[RevenueCatBootstrap.entitlementID],
               entitlement.isActive else { return .free }

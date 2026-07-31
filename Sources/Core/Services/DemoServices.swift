@@ -349,15 +349,29 @@ public struct DemoPlannerService: PlannerService {
 public struct DemoPremiumService: PremiumService {
     public init() {}
 
+    // Fake purchases: persisted locally so the premium experience survives
+    // relaunches, letting both flows (paid / unpaid) be tested end-to-end
+    // before RevenueCat is wired. Real StoreKit never runs.
+    static let fakePurchaserKey = "missuo.fakePremium.purchaser"
+    static let fakeProductKey = "missuo.fakePremium.product"
+
+    public static func resetFakePurchase() {
+        UserDefaults.standard.removeObject(forKey: fakePurchaserKey)
+        UserDefaults.standard.removeObject(forKey: fakeProductKey)
+    }
+
     public func premiumState(relationship: Relationship?, me: UserID) async -> PremiumState {
-        guard let purchaser = await DemoStore.shared.premiumPurchaser else { return .free }
+        guard let purchaser = UserDefaults.standard.string(forKey: Self.fakePurchaserKey)
+        else { return .free }
         let members = relationship?.memberIDs ?? [me]
         guard members.contains(purchaser) else { return .free }
         return PremiumState(
             isPremium: true,
             inheritedFromPartner: purchaser != me,
-            entitlement: PremiumEntitlement(purchaserID: purchaser, productID: "lovio_yearly",
-                                            expiresAt: .now.addingTimeInterval(86_400 * 365)))
+            entitlement: PremiumEntitlement(
+                purchaserID: purchaser,
+                productID: UserDefaults.standard.string(forKey: Self.fakeProductKey) ?? "lovio_yearly",
+                expiresAt: .now.addingTimeInterval(86_400 * 365)))
     }
 
     public func offers() async throws -> [PaywallOffer] {
@@ -376,7 +390,10 @@ public struct DemoPremiumService: PremiumService {
     }
 
     public func purchase(offerID: String, me: UserID, relationship: RelationshipID?) async throws -> PremiumState {
-        await DemoStore.shared.setPremiumPurchaser(me)
+        // Simulated App Store confirmation delay for a believable flow.
+        try? await Task.sleep(for: .milliseconds(900))
+        UserDefaults.standard.set(me, forKey: Self.fakePurchaserKey)
+        UserDefaults.standard.set(offerID, forKey: Self.fakeProductKey)
         return PremiumState(isPremium: true,
                             entitlement: PremiumEntitlement(purchaserID: me, productID: offerID,
                                                             expiresAt: .now.addingTimeInterval(86_400 * 365)))
@@ -441,7 +458,7 @@ public enum LovioError: LocalizedError {
         case .invalidInviteCode: "That invite code doesn't look right. Double-check it with your partner."
         case .relationshipFull: "This relationship already has two partners."
         case .notSignedIn: "Please sign in first."
-        case .premiumRequired: "This feature is part of Lovio Premium."
+        case .premiumRequired: "This feature is part of Missuo Premium."
         }
     }
 }

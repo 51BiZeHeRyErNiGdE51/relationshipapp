@@ -14,7 +14,7 @@ struct RootView: View {
             case .loading:
                 VStack(spacing: 16) {
                     HeartPulse(size: 52)
-                    Text("Lovio")
+                    Text("Missuo")
                         .font(Lovio.Type_.display)
                         .foregroundStyle(Lovio.Gradients.hero)
                 }
@@ -51,14 +51,15 @@ struct MainTabView: View {
             NavigationStack { HomeView() }
                 .tabItem { Label("Today", systemImage: "heart.fill") }
 
+            // Widgets are the flagship engagement surface — first-class tab.
+            NavigationStack { WidgetGalleryView() }
+                .tabItem { Label("Widgets", systemImage: "square.grid.2x2.fill") }
+
             NavigationStack { MemoriesView() }
                 .tabItem { Label("Memories", systemImage: "book.closed.fill") }
 
             NavigationStack { PlanView() }
                 .tabItem { Label("Plans", systemImage: "calendar") }
-
-            NavigationStack { PlayView() }
-                .tabItem { Label("Play", systemImage: "gamecontroller.fill") }
 
             NavigationStack { UsView() }
                 .tabItem { Label("Us", systemImage: "person.2.fill") }
