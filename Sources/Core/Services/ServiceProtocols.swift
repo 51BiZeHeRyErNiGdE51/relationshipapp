@@ -52,8 +52,18 @@ public protocol RelationshipService: Sendable {
 
     /// Append to the relationship graph + apply gamification side effects.
     func record(event: RelationshipEvent, relationship: RelationshipID) async throws
+    /// Recent relationship activity, newest first (powers the shared history log).
+    func recentEvents(relationship: RelationshipID, limit: Int) async throws -> [RelationshipEvent]
     /// Persist mutated gamification state (streak / xp / love score / companion).
     func updateGamification(_ relationship: Relationship) async throws
+
+    // MARK: Shared widget content (photo + note synced to both partners)
+
+    func widgetContent(relationship: RelationshipID) async throws -> SharedWidgetContent?
+    func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID) async throws
+    /// Uploads a JPEG to shared storage; returns the storage path.
+    func uploadImage(_ jpeg: Data, relationship: RelationshipID, fileName: String) async throws -> String
+    func downloadImage(path: String) async throws -> Data
 }
 
 // MARK: Content

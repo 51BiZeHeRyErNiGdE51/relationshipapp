@@ -20,10 +20,10 @@ struct UsView: View {
                 levelCard
                 achievementsCard
 
-                NavigationLink { PlayView() } label: {
-                    rowCard(symbol: "gamecontroller.fill", tint: Lovio.Palette.lavender,
-                            title: "Couple Games",
-                            subtitle: "Quizzes, challenges and games for two")
+                NavigationLink { PlanView() } label: {
+                    rowCard(symbol: "calendar", tint: Lovio.Palette.lavender,
+                            title: "Plans & Countdowns",
+                            subtitle: "Dates, bucket list and shared notes")
                 }
                 .buttonStyle(.plain)
 
@@ -242,6 +242,37 @@ struct CompanionView: View {
                             .padding(.horizontal, 24)
                     }
 
+                    // Growth journey — where it's headed
+                    GlassCard(tint: Lovio.Palette.teal) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Its journey").font(Lovio.Type_.headline)
+                            ForEach(Array(companion.kind.stageNames.enumerated()), id: \.offset) { index, name in
+                                HStack(spacing: 12) {
+                                    Image(systemName: index < companion.stage ? "checkmark.circle.fill"
+                                                    : index == companion.stage ? "circle.dotted.circle"
+                                                    : "circle")
+                                        .foregroundStyle(index <= companion.stage
+                                                         ? Lovio.Palette.teal : Color.secondary)
+                                    Text(name)
+                                        .font(index == companion.stage
+                                              ? Lovio.Type_.headline : Lovio.Type_.body)
+                                        .foregroundStyle(index <= companion.stage ? .primary : .secondary)
+                                    if index == companion.stage {
+                                        Text("now")
+                                            .font(Lovio.Type_.caption)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(Capsule().fill(Lovio.Palette.teal.opacity(0.2)))
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            Text("Every answered question, mood check-in, memory and streak day feeds it. Reach 100% growth to evolve to the next stage.")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     // Picker
                     Text("Choose your world")
                         .font(Lovio.Type_.title)
@@ -321,13 +352,17 @@ struct MoodAnalyticsView: View {
                             }
                         }
                         .frame(height: 64, alignment: .bottom)
-                        Text("Average energy trend for both of you")
+                        Text(history.isEmpty
+                             ? "Check in moods daily — your real energy trend builds here."
+                             : "Average energy trend for both of you")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                if !model.premium.isPremium {
+                if model.premium.isPremium {
+                    premiumInsights
+                } else {
                     Button { showPaywall = true } label: {
                         GlassCard(tint: Lovio.Palette.gold) {
                             Label("Full mood analytics, correlations and relationship trends are Premium",
@@ -372,8 +407,83 @@ struct MoodAnalyticsView: View {
     }
 
     private func barHeight(day: Int) -> CGFloat {
-        // Deterministic pseudo-trend for the chart placeholder.
+        // Real data when it exists; deterministic placeholder otherwise.
+        let dayStart = Calendar.current.date(byAdding: .day, value: day - 29,
+                                             to: Calendar.current.startOfDay(for: .now))!
+        let entries = history.filter { Calendar.current.isDate($0.loggedAt, inSameDayAs: dayStart) }
+        if !entries.isEmpty {
+            let avg = entries.map { Double($0.energy) }.reduce(0, +) / Double(entries.count)
+            return CGFloat(12 + (avg / 5) * 52)
+        }
+        guard history.isEmpty else { return 12 } // no check-in that day
         let seed = sin(Double(day) * 0.9) * 0.5 + 0.5
         return CGFloat(18 + seed * 46)
+    }
+
+    // MARK: Premium — real numbers computed from your check-in history
+
+    @ViewBuilder
+    private var premiumInsights: some View {
+        let mine = history.filter { $0.authorID == model.user?.id }
+        let partners = history.filter { $0.authorID != model.user?.id }
+
+        GlassCard(tint: Lovio.Palette.gold) {
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Your month, in numbers", systemImage: "crown.fill")
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(Lovio.Palette.gold)
+
+                if history.isEmpty {
+                    Text("No check-ins yet. Once you both start logging moods, this becomes your monthly relationship report: energy patterns, love meter trends and who checks in more.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 12) {
+                        statBox(value: "\(history.count)", label: "check-ins")
+                        statBox(value: String(format: "%.1f", average(history.map { Double($0.energy) })),
+                                label: "avg energy")
+                        statBox(value: String(format: "%.0f", average(history.map { Double($0.loveMeter) })),
+                                label: "love meter")
+                    }
+
+                    HStack(spacing: 12) {
+                        statBox(value: "\(mine.count)", label: "you")
+                        statBox(value: "\(partners.count)", label: model.partnerFirstName ?? "partner")
+                        statBox(value: bestWeekday, label: "best day")
+                    }
+
+                    Text(mine.count > partners.count
+                         ? "You've been checking in more — a gentle nudge to \(model.partnerFirstName ?? "your partner") might be nice."
+                         : "\(model.partnerFirstName ?? "Your partner") is keeping the rhythm — match their check-ins to grow your streak.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func statBox(value: String, label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value).font(.system(.title3, design: .rounded, weight: .heavy))
+            Text(label).font(Lovio.Type_.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.ultraThinMaterial))
+    }
+
+    private func average(_ values: [Double]) -> Double {
+        values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+    }
+
+    /// Weekday with the highest average love meter.
+    private var bestWeekday: String {
+        let grouped = Dictionary(grouping: history) {
+            Calendar.current.component(.weekday, from: $0.loggedAt)
+        }
+        guard let best = grouped.max(by: {
+            average($0.value.map { Double($0.loveMeter) }) < average($1.value.map { Double($0.loveMeter) })
+        }) else { return "—" }
+        return Calendar.current.shortWeekdaySymbols[best.key - 1]
     }
 }

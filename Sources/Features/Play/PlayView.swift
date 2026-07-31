@@ -243,6 +243,12 @@ struct AICoachView: View {
                         .font(Lovio.Type_.title)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                    // Honesty until the real model is wired (planned: server-side
+                    // LLM proxy via Cloud Functions — provider TBD).
+                    Label("Coach preview — example responses until the AI service launches", systemImage: "info.circle")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.tertiary)
+
                     ForEach(Array(chatLog.enumerated()), id: \.offset) { _, message in
                         GlassCard(tint: message.role == "me" ? Lovio.Palette.rose : Lovio.Palette.teal) {
                             Text(message.text).font(Lovio.Type_.body)

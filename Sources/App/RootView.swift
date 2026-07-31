@@ -58,8 +58,8 @@ struct MainTabView: View {
             NavigationStack { MemoriesView() }
                 .tabItem { Label("Memories", systemImage: "book.closed.fill") }
 
-            NavigationStack { PlanView() }
-                .tabItem { Label("Plans", systemImage: "calendar") }
+            NavigationStack { PlayView() }
+                .tabItem { Label("Play", systemImage: "gamecontroller.fill") }
 
             NavigationStack { UsView() }
                 .tabItem { Label("Us", systemImage: "person.2.fill") }

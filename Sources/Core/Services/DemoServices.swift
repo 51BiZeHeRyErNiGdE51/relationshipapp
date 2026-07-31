@@ -131,6 +131,12 @@ public actor DemoStore {
     func addEvent(_ e: RelationshipEvent) { events.append(e) }
     func addAnswer(_ a: QuestionAnswer) { answers[a.questionID, default: []].append(a) }
     func setPremiumPurchaser(_ u: UserID?) { premiumPurchaser = u }
+
+    // Shared widget content + in-memory image store (demo mode)
+    var widgetContent: SharedWidgetContent?
+    var imageStore: [String: Data] = [:]
+    func setWidgetContent(_ c: SharedWidgetContent) { widgetContent = c }
+    func storeImage(_ data: Data, path: String) { imageStore[path] = data }
 }
 
 // MARK: - Question bank
@@ -229,8 +235,29 @@ public struct DemoRelationshipService: RelationshipService {
     public func record(event: RelationshipEvent, relationship: RelationshipID) async throws {
         await DemoStore.shared.addEvent(event)
     }
+    public func recentEvents(relationship: RelationshipID, limit: Int) async throws -> [RelationshipEvent] {
+        Array(await DemoStore.shared.events.sorted { $0.occurredAt > $1.occurredAt }.prefix(limit))
+    }
     public func updateGamification(_ relationship: Relationship) async throws {
         await DemoStore.shared.setRelationship(relationship)
+    }
+
+    public func widgetContent(relationship: RelationshipID) async throws -> SharedWidgetContent? {
+        await DemoStore.shared.widgetContent
+    }
+    public func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID) async throws {
+        await DemoStore.shared.setWidgetContent(content)
+    }
+    public func uploadImage(_ jpeg: Data, relationship: RelationshipID, fileName: String) async throws -> String {
+        let path = "demo/\(relationship)/\(fileName)"
+        await DemoStore.shared.storeImage(jpeg, path: path)
+        return path
+    }
+    public func downloadImage(path: String) async throws -> Data {
+        guard let data = await DemoStore.shared.imageStore[path] else {
+            throw LovioError.notSignedIn // unreachable in practice
+        }
+        return data
     }
 }
 

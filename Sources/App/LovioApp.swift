@@ -84,19 +84,46 @@ final class NotificationManager {
     static let shared = NotificationManager()
     private var center: UNUserNotificationCenter { .current() }
 
+    // User-facing notification preferences (Settings → Notifications).
+    // Missing key == enabled, so pushes work out of the box.
+    enum Pref {
+        static let dailyEnabled = "missuo.notif.daily.enabled"
+        static let dailyHour = "missuo.notif.daily.hour"
+        static let dailyMinute = "missuo.notif.daily.minute"
+        static let eventsEnabled = "missuo.notif.events.enabled"
+        static let offersEnabled = "missuo.notif.offers.enabled"
+
+        static func isOn(_ key: String) -> Bool {
+            UserDefaults.standard.object(forKey: key) == nil || UserDefaults.standard.bool(forKey: key)
+        }
+    }
+
     func requestPermissionsAndSchedule(reminderHour: Int) async {
         let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         guard granted else { return }
+        await applyDailyReminder(defaultHour: reminderHour)
+    }
 
-        // Daily question reminder — the single most important retention push.
+    /// Daily question reminder — the single most important retention push.
+    /// Time defaults to the remote-config experiment; the user's own choice
+    /// in Settings always wins.
+    func applyDailyReminder(defaultHour: Int) async {
         center.removePendingNotificationRequests(withIdentifiers: ["daily_question"])
+        guard Pref.isOn(Pref.dailyEnabled) else { return }
+
+        let defaults = UserDefaults.standard
+        let hour = defaults.object(forKey: Pref.dailyHour) != nil
+            ? defaults.integer(forKey: Pref.dailyHour) : defaultHour
+        let minute = defaults.integer(forKey: Pref.dailyMinute)
+
         let content = UNMutableNotificationContent()
         content.title = "Today's question is waiting 💭"
         content.body = "Answer before midnight to keep your streak alive."
         content.sound = .default
 
         var components = DateComponents()
-        components.hour = reminderHour
+        components.hour = hour
+        components.minute = minute
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         try? await center.add(UNNotificationRequest(identifier: "daily_question",
                                                     content: content, trigger: trigger))
@@ -109,6 +136,7 @@ final class NotificationManager {
         let pending = await center.pendingNotificationRequests()
             .map(\.identifier).filter { $0.hasPrefix("event_") }
         center.removePendingNotificationRequests(withIdentifiers: pending)
+        guard Pref.isOn(Pref.eventsEnabled) else { return }
 
         for date in dates.prefix(10) {
             let days = date.daysUntil
@@ -136,6 +164,7 @@ final class NotificationManager {
 
     /// Two nudges inside the 7-day secondary-offer window.
     func scheduleOfferReminders(deadline: Date) {
+        guard Pref.isOn(Pref.offersEnabled) else { return }
         let midpoint = deadline.addingTimeInterval(-4 * 86_400)
         let lastCall = deadline.addingTimeInterval(-1 * 86_400)
         Task {
@@ -156,7 +185,7 @@ final class NotificationManager {
 
     /// Gentle weekly reminder for free users; cancelled on purchase.
     func scheduleWeeklyPremiumNudge(isPremium: Bool) {
-        guard !isPremium else {
+        guard !isPremium, Pref.isOn(Pref.offersEnabled) else {
             center.removePendingNotificationRequests(withIdentifiers: ["premium_weekly"])
             return
         }

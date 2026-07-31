@@ -189,6 +189,8 @@ public enum RelationshipEventKind: String, Codable, Sendable {
     case gamePlayed = "game_played"
     case milestoneAdded = "milestone_added"
     case widgetInteraction = "widget_interaction"
+    case widgetNoteSent = "widget_note_sent"
+    case widgetPhotoSent = "widget_photo_sent"
     case appOpened = "app_opened"
 }
 

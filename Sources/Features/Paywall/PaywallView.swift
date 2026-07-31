@@ -67,112 +67,118 @@ struct PaywallView: View {
 
     // MARK: Main paywall
 
+    // Design rules:
+    // 1. NO scrolling — full prices, math and CTA all visible at once.
+    // 2. Full price is the biggest number on each offer (App Review wants the
+    //    real price unmissable); per-week-per-person is the supporting math.
+    // 3. CTA sits at the exact same spot as the tutorial's Continue button.
     private var mainContent: some View {
-            ScrollView {
-                VStack(spacing: 24) {
-                    HStack {
-                        Spacer()
-                        Button {
-                            handleClose()
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.white.opacity(0.6))
-                        }
-                    }
-
-                    VStack(spacing: 12) {
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: 44))
-                            .foregroundStyle(Lovio.Palette.gold)
-                            .shadow(color: Lovio.Palette.gold.opacity(0.6), radius: 16)
-
-                        Text(headline)
-                            .font(Lovio.Type_.display)
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.center)
-                            .minimumScaleFactor(0.7)
-
-                        Text("You subscribe once — \(model.partnerFirstName ?? "your partner") gets everything free. Premium belongs to the relationship.")
-                            .font(Lovio.Type_.body)
-                            .foregroundStyle(.white.opacity(0.85))
-                            .multilineTextAlignment(.center)
-                    }
-
-                    // Feature list
-                    VStack(alignment: .leading, spacing: 12) {
-                        feature("square.grid.2x2.fill", "All 20+ widgets, on both phones")
-                        feature("sparkles", "AI coach, weekly reports & date planner")
-                        feature("leaf.fill", "Every companion world, exclusive evolutions")
-                        feature("book.closed.fill", "Unlimited journal, voice memories & recaps")
-                        feature("chart.xyaxis.line", "Mood analytics & relationship insights")
-                        feature("rectangle.stack.badge.play.fill", "Live Activities & lock screen widgets")
-                        feature("hand.raised.slash.fill", "Zero ads, forever")
-                    }
-                    .padding(20)
-                    .background(RoundedRectangle(cornerRadius: 24).fill(.white.opacity(0.12)))
-
-                    // Offers — anchored on per-week-per-person
-                    VStack(spacing: 12) {
-                        ForEach(offers) { offer in
-                            offerRow(offer)
-                        }
-                    }
-
-                    // CTA
-                    Button {
-                        guard let selected else { return }
-                        isPurchasing = true
-                        Task {
-                            await model.purchase(offer: selected)
-                            isPurchasing = false
-                            if model.premium.isPremium { dismiss() }
-                        }
-                    } label: {
-                        Group {
-                            if isPurchasing {
-                                ProgressView().tint(Lovio.Palette.plum)
-                            } else if let selected, selected.trialDays > 0 {
-                                Text("Start \(selected.trialDays)-day free trial")
-                            } else {
-                                Text("Continue")
-                            }
-                        }
-                        .font(Lovio.Type_.headline)
-                        .foregroundStyle(Lovio.Palette.plum)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Capsule().fill(.white))
-                    }
-                    .disabled(selected == nil || isPurchasing)
-
-                    if let selected {
-                        Text("That's \(selected.formattedPerWeekPerPerson()) per week, per person — less than half a coffee.")
-                            .font(Lovio.Type_.caption)
-                            .foregroundStyle(.white.opacity(0.8))
-                            .multilineTextAlignment(.center)
-                    }
-
-                    if model.isDemoMode || !RevenueCatBootstrap.isConfigured {
-                        Text("Preview pricing — live prices load from the App Store once products are configured.")
-                            .font(Lovio.Type_.caption)
-                            .foregroundStyle(.white.opacity(0.5))
-                            .multilineTextAlignment(.center)
-                    }
-
-                    HStack(spacing: 20) {
-                        Button("Restore purchases") {
-                            Task { await model.restorePurchases() }
-                        }
-                        Button("Terms") {}
-                        Button("Privacy") {}
-                    }
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(.white.opacity(0.55))
-                    .padding(.bottom, 16)
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button {
+                    handleClose()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(0.6))
                 }
-                .padding(Lovio.Metrics.screenPadding)
             }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+            .padding(.top, 8)
+
+            Spacer(minLength: 8)
+
+            VStack(spacing: 10) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(Lovio.Palette.gold)
+                    .shadow(color: Lovio.Palette.gold.opacity(0.6), radius: 14)
+
+                Text(headline)
+                    .font(Lovio.Type_.largeTitle)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.7)
+
+                Text("You subscribe once — \(model.partnerFirstName ?? "your partner") gets everything free.")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+
+            Spacer(minLength: 12)
+
+            VStack(alignment: .leading, spacing: 10) {
+                feature("square.grid.2x2.fill", "All 20+ widgets, on both phones")
+                feature("sparkles", "AI coach, insights & date planner")
+                feature("book.closed.fill", "Unlimited journal & voice memories")
+                feature("hand.raised.slash.fill", "Zero ads, forever")
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 20).fill(.white.opacity(0.12)))
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+
+            Spacer(minLength: 12)
+
+            VStack(spacing: 10) {
+                ForEach(offers) { offer in
+                    offerRow(offer)
+                }
+
+                if let selected {
+                    Text("= \(selected.formattedPerWeekPerPerson()) per week, per person — it covers both of you.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 20) {
+                Button("Restore purchases") {
+                    Task { await model.restorePurchases() }
+                }
+                Button("Terms") {}
+                Button("Privacy") {}
+            }
+            .font(Lovio.Type_.caption)
+            .foregroundStyle(.white.opacity(0.55))
+            .padding(.bottom, 10)
+
+            // CTA — same geometry as the tutorial's Continue button.
+            Button {
+                guard let selected else { return }
+                isPurchasing = true
+                Task {
+                    await model.purchase(offer: selected)
+                    isPurchasing = false
+                    if model.premium.isPremium { dismiss() }
+                }
+            } label: {
+                Group {
+                    if isPurchasing {
+                        ProgressView().tint(Lovio.Palette.plum)
+                    } else if let selected, selected.trialDays > 0 {
+                        Text("Start Using Free")
+                    } else {
+                        Text("Continue")
+                    }
+                }
+                .font(Lovio.Type_.headline)
+                .foregroundStyle(Lovio.Palette.plum)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Capsule().fill(.white))
+            }
+            .disabled(selected == nil || isPurchasing)
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+            .padding(.bottom, 24)
+        }
     }
 
     // MARK: Secondary offer ("wait — a gift for you two")
@@ -276,6 +282,10 @@ struct PaywallView: View {
         }
     }
 
+    private func isYearly(_ offer: PaywallOffer) -> Bool {
+        offer.id.contains("yearly") || offer.title.localizedCaseInsensitiveContains("year")
+    }
+
     private func offerRow(_ offer: PaywallOffer) -> some View {
         Button {
             selected = offer
@@ -297,21 +307,23 @@ struct PaywallView: View {
                         }
                     }
                     if offer.trialDays > 0 {
-                        Text("\(offer.trialDays) days free, then \(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))/year")
+                        Text("\(offer.trialDays) days free · cancel anytime")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.white.opacity(0.7))
                     } else {
-                        Text("Billed monthly · cancel anytime")
+                        Text("Cancel anytime")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.white.opacity(0.7))
                     }
                 }
                 Spacer()
+                // Full price leads (App Review compliance); our per-person
+                // framing is the caption underneath.
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(offer.formattedPerWeekPerPerson())
-                        .font(Lovio.Type_.headline)
+                    Text("\(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))\(isYearly(offer) ? "/year" : "/month")")
+                        .font(.system(.headline, design: .rounded, weight: .heavy))
                         .foregroundStyle(.white)
-                    Text("/ week / person")
+                    Text("≈ \(offer.formattedPerWeekPerPerson()) /week /person")
                         .font(Lovio.Type_.caption)
                         .foregroundStyle(.white.opacity(0.7))
                 }

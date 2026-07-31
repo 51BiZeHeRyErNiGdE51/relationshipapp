@@ -7,6 +7,7 @@ import FirebaseFirestore
 import FirebaseMessaging
 import FirebaseAnalytics
 import FirebaseRemoteConfig
+import FirebaseStorage
 import GoogleSignIn
 import UIKit
 
@@ -256,9 +257,45 @@ struct FirestoreRelationshipService: RelationshipService {
             .collection("events").document(event.id).setData(from: event)
     }
 
+    func recentEvents(relationship: RelationshipID, limit: Int) async throws -> [RelationshipEvent] {
+        let snapshot = try await db.collection("relationships").document(relationship)
+            .collection("events")
+            .order(by: "occurredAt", descending: true)
+            .limit(to: limit)
+            .getDocuments()
+        return snapshot.documents.compactMap { try? $0.data(as: RelationshipEvent.self) }
+    }
+
     func updateGamification(_ relationship: Relationship) async throws {
         try db.collection("relationships").document(relationship.id)
             .setData(from: relationship, merge: true)
+    }
+
+    // MARK: Shared widget content + image storage
+
+    func widgetContent(relationship: RelationshipID) async throws -> SharedWidgetContent? {
+        let doc = try await db.collection("relationships").document(relationship)
+            .collection("widgetContent").document("state").getDocument()
+        return try? doc.data(as: SharedWidgetContent.self)
+    }
+
+    func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID) async throws {
+        try db.collection("relationships").document(relationship)
+            .collection("widgetContent").document("state").setData(from: content, merge: true)
+    }
+
+    func uploadImage(_ jpeg: Data, relationship: RelationshipID, fileName: String) async throws -> String {
+        let path = "relationships/\(relationship)/\(fileName)"
+        let ref = Storage.storage().reference(withPath: path)
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        _ = try await ref.putDataAsync(jpeg, metadata: metadata)
+        return path
+    }
+
+    func downloadImage(path: String) async throws -> Data {
+        try await Storage.storage().reference(withPath: path)
+            .data(maxSize: 8 * 1024 * 1024)
     }
 }
 

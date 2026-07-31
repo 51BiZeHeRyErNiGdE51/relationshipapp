@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Photos (widget polaroids, milestone photos, journal media) are visible
+// ONLY to the two members of the relationship. Membership is checked against
+// the Firestore relationship document — nobody else can ever read the files.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /relationships/{relID}/{allPaths=**} {
+      function isMember() {
+        return request.auth != null
+          && request.auth.uid in firestore.get(
+               /databases/(default)/documents/relationships/$(relID)).data.memberIDs;
+      }
+      allow read: if isMember();
+      allow write: if isMember() && request.resource.size < 10 * 1024 * 1024;
+    }
+  }
+}

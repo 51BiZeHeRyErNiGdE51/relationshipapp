@@ -96,6 +96,14 @@ export const onEventCreated = onDocumentCreated(
       case "heart_tap":
         await push(partner, "A heart just landed in your jar ❤️", "Your partner is thinking of you.");
         break;
+      case "widget_note_sent":
+        await push(partner, "New note on your widget 💌",
+          "Your partner left something on your home screen. Open Missuo to sync it.");
+        break;
+      case "widget_photo_sent":
+        await push(partner, "New photo on your widget 📸",
+          "Your partner changed your Polaroid. Open Missuo to see it.");
+        break;
     }
   });
 

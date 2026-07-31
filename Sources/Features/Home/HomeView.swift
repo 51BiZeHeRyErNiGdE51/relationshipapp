@@ -420,19 +420,28 @@ struct HomeView: View {
 
     // MARK: Miss you
 
+    /// One-tap "miss you" — sends a push to the partner's phone.
+    /// Labeled so its purpose is obvious (was a bare paperplane icon).
     private var missYouButton: some View {
         Button {
             missYouBurst = true
             Task {
                 await model.sendMissYou()
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1.4))
                 missYouBurst = false
             }
         } label: {
-            Image(systemName: missYouBurst ? "heart.fill" : "paperplane.fill")
-                .symbolEffect(.bounce, value: missYouBurst)
-                .foregroundStyle(Lovio.Palette.rose)
+            HStack(spacing: 6) {
+                Image(systemName: missYouBurst ? "heart.fill" : "paperplane.fill")
+                    .symbolEffect(.bounce, value: missYouBurst)
+                Text(missYouBurst ? "Sent!" : "Miss you")
+                    .font(Lovio.Type_.caption.weight(.semibold))
+            }
+            .foregroundStyle(Lovio.Palette.rose)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(Lovio.Palette.rose.opacity(0.12)))
         }
-        .accessibilityLabel("Send Miss You")
+        .accessibilityLabel("Send Miss You to your partner")
     }
 }

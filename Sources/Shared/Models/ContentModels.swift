@@ -276,14 +276,43 @@ public struct Milestone: Codable, Identifiable, Hashable, Sendable {
     public var emoji: String
     public var date: Date
     public var note: String?
+    /// Storage path of an attached photo (optional).
+    public var photoPath: String?
 
     public init(id: String = UUID().uuidString, title: String, emoji: String,
-                date: Date, note: String? = nil) {
+                date: Date, note: String? = nil, photoPath: String? = nil) {
         self.id = id
         self.title = title
         self.emoji = emoji
         self.date = date
         self.note = note
+        self.photoPath = photoPath
+    }
+}
+
+// MARK: - Shared widget content (photo + note pushed to the couple's widgets)
+//
+// Written by either partner, mirrored onto BOTH phones' widgets. The photo
+// itself lives in Storage; this document carries the pointer + authorship so
+// each client knows when to re-download.
+
+public struct SharedWidgetContent: Codable, Sendable {
+    public var note: String?
+    public var noteAuthorID: UserID?
+    public var noteUpdatedAt: Date?
+
+    public var photoPath: String?
+    public var photoAuthorID: UserID?
+    public var photoUpdatedAt: Date?
+
+    public init(note: String? = nil, noteAuthorID: UserID? = nil, noteUpdatedAt: Date? = nil,
+                photoPath: String? = nil, photoAuthorID: UserID? = nil, photoUpdatedAt: Date? = nil) {
+        self.note = note
+        self.noteAuthorID = noteAuthorID
+        self.noteUpdatedAt = noteUpdatedAt
+        self.photoPath = photoPath
+        self.photoAuthorID = photoAuthorID
+        self.photoUpdatedAt = photoUpdatedAt
     }
 }
 

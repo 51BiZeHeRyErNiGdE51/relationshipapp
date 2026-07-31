@@ -47,7 +47,8 @@ struct PlanView: View {
                 }
             }
         }
-        .sheet(isPresented: $showDateEditor) { SpecialDateEditor { await load() } }
+        // refreshToday() keeps Home's "next adventure" card in sync with new dates.
+        .sheet(isPresented: $showDateEditor) { SpecialDateEditor { await load(); await model.refreshToday() } }
         .sheet(isPresented: $showBucketEditor) { BucketItemEditor { await load() } }
         .sheet(isPresented: $showNoteEditor) { NoteEditor(note: nil) { await load() } }
         .task { await load() }
@@ -79,6 +80,16 @@ struct PlanView: View {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Lovio.Palette.teal)
                     }
                 }
+            }
+
+            if dates.isEmpty {
+                emptyCard(symbol: "calendar.badge.clock", tint: Lovio.Palette.rose,
+                          title: "Count down to what's next",
+                          examples: ["🎂  Her birthday (repeats yearly)",
+                                     "✈️  Trip to Rome",
+                                     "💞  Your anniversary",
+                                     "🎬  Date night on Friday"],
+                          footer: "The nearest one appears on your Home screen and the Next Adventure widget, and you both get reminded the day before.")
             }
 
             ForEach(dates) { date in
@@ -120,6 +131,16 @@ struct PlanView: View {
 
     private var bucketSection: some View {
         VStack(spacing: 12) {
+            if bucket.isEmpty {
+                emptyCard(symbol: "sparkles", tint: Lovio.Palette.gold,
+                          title: "Things you'll do together — someday, on purpose",
+                          examples: ["🍜  That ramen place downtown",
+                                     "🇯🇵  See Japan in cherry blossom season",
+                                     "⛺  Camp under the stars",
+                                     "💃  Take a dance class"],
+                          footer: "Tick items off together — each completed one becomes a memory.")
+            }
+
             ForEach(BucketCategory.allCases, id: \.self) { category in
                 let items = bucket.filter { $0.category == category }
                 if !items.isEmpty {
@@ -164,6 +185,16 @@ struct PlanView: View {
 
     private var notesSection: some View {
         VStack(spacing: 12) {
+            if notes.isEmpty {
+                emptyCard(symbol: "note.text", tint: Lovio.Palette.teal,
+                          title: "One shared brain for you two",
+                          examples: ["🛒  Groceries (you both can check off)",
+                                     "🧳  Packing list for the weekend",
+                                     "🎁  Gift ideas — mark it private so it stays a surprise",
+                                     "🎵  Songs that remind you of each other"],
+                          footer: "Pin important notes to the top. Private notes are visible only to you.")
+            }
+
             ForEach(notes) { note in
                 GlassCard(tint: note.isPinned ? Lovio.Palette.gold : nil) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -196,6 +227,30 @@ struct PlanView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Empty state guidance
+
+extension PlanView {
+    fileprivate func emptyCard(symbol: String, tint: Color, title: String,
+                               examples: [String], footer: String) -> some View {
+        GlassCard(tint: tint) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(title, systemImage: symbol)
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(tint)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(examples, id: \.self) { Text($0).font(Lovio.Type_.body) }
+                }
+                Text(footer)
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
+                Text("Tap + in the top corner to add one.")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

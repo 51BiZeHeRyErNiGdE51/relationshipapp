@@ -305,6 +305,7 @@ final class AppModel {
         upcomingDates = await dates ?? []
         publishWidgetSnapshot()
         await NotificationManager.shared.scheduleEventReminders(dates: upcomingDates)
+        await syncIncomingWidgetContent()
     }
 
     // MARK: Actions (each one feeds the relationship graph + gamification)
@@ -434,6 +435,64 @@ final class AppModel {
         if let state = try? await services.premium.restorePurchases(me: user.id) {
             premium = state
             services.analytics.track(.purchaseRestored)
+        }
+    }
+
+    // MARK: Widgets — shared content (photo + note reach BOTH partners)
+
+    /// Publishes a love note to my widgets AND my partner's (via Firestore;
+    /// a Cloud Function pushes "new note on your widget" to their phone).
+    func sendWidgetNote(_ text: String) async {
+        WidgetContent.saveNote(text)
+        publishWidgetSnapshot()
+        guard let rel = relationship, let me = user else { return }
+        var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
+        content.note = text
+        content.noteAuthorID = me.id
+        content.noteUpdatedAt = .now
+        try? await services.relationship.saveWidgetContent(content, relationship: rel.id)
+        try? await services.relationship.record(
+            event: RelationshipEvent(kind: .widgetNoteSent, actorID: me.id), relationship: rel.id)
+    }
+
+    /// Publishes a photo to both partners' Polaroid widgets. Photos are
+    /// visible ONLY to the two members (enforced by Storage rules).
+    func sendWidgetPhoto(_ jpeg: Data) async {
+        WidgetContent.savePhoto(jpeg)
+        guard let rel = relationship, let me = user else { return }
+        guard let path = try? await services.relationship.uploadImage(
+            jpeg, relationship: rel.id, fileName: "widget_photo.jpg") else { return }
+        var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
+        content.photoPath = path
+        content.photoAuthorID = me.id
+        content.photoUpdatedAt = .now
+        try? await services.relationship.saveWidgetContent(content, relationship: rel.id)
+        try? await services.relationship.record(
+            event: RelationshipEvent(kind: .widgetPhotoSent, actorID: me.id), relationship: rel.id)
+    }
+
+    /// Pulls partner-sent widget content onto THIS device (called on refresh
+    /// and when a push wakes the app). Last-writer-wins, only newer content.
+    func syncIncomingWidgetContent() async {
+        guard let rel = relationship, let me = user,
+              let content = try? await services.relationship.widgetContent(relationship: rel.id)
+        else { return }
+        let defaults = AppGroup.defaults
+
+        if let note = content.note, content.noteAuthorID != me.id,
+           let at = content.noteUpdatedAt,
+           at > (defaults.object(forKey: "lovio.widget.note.syncedAt") as? Date ?? .distantPast) {
+            WidgetContent.saveNote(note)
+            defaults.set(at, forKey: "lovio.widget.note.syncedAt")
+            publishWidgetSnapshot()
+        }
+
+        if let path = content.photoPath, content.photoAuthorID != me.id,
+           let at = content.photoUpdatedAt,
+           at > (defaults.object(forKey: "lovio.widget.photo.syncedAt") as? Date ?? .distantPast),
+           let data = try? await services.relationship.downloadImage(path: path) {
+            WidgetContent.savePhoto(data)
+            defaults.set(at, forKey: "lovio.widget.photo.syncedAt")
         }
     }
 

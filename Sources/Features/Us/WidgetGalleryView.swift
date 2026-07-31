@@ -14,6 +14,8 @@ struct WidgetGalleryView: View {
     @State private var photoSaved = false
     @State private var note = WidgetContent.note ?? ""
     @State private var noteSaved = false
+    @State private var howToSpec: WidgetSpec?
+    @State private var events: [RelationshipEvent] = []
 
     struct WidgetSpec: Identifiable {
         let id: String
@@ -74,37 +76,57 @@ struct WidgetGalleryView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     ForEach(specs) { spec in
-                        GlassCard(tint: spec.tint) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Image(systemName: spec.symbol)
-                                        .font(.title2)
-                                        .foregroundStyle(spec.tint)
-                                    Spacer()
-                                    if spec.isPremium && !model.premium.isPremium {
-                                        Image(systemName: "crown.fill")
-                                            .font(.caption)
-                                            .foregroundStyle(Lovio.Palette.gold)
+                        Button {
+                            if spec.isPremium && !model.premium.isPremium {
+                                showPaywall = true
+                            } else {
+                                howToSpec = spec
+                            }
+                        } label: {
+                            GlassCard(tint: spec.tint) {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        Image(systemName: spec.symbol)
+                                            .font(.title2)
+                                            .foregroundStyle(spec.tint)
+                                        Spacer()
+                                        if spec.isPremium && !model.premium.isPremium {
+                                            Image(systemName: "crown.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(Lovio.Palette.gold)
+                                        }
                                     }
+                                    Text(spec.title).font(Lovio.Type_.headline)
+                                    Text(spec.subtitle)
+                                        .font(Lovio.Type_.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(height: 42, alignment: .top)
+                                        .multilineTextAlignment(.leading)
                                 }
-                                Text(spec.title).font(Lovio.Type_.headline)
-                                Text(spec.subtitle)
-                                    .font(Lovio.Type_.caption)
-                                    .foregroundStyle(.secondary)
-                                    .frame(height: 42, alignment: .top)
                             }
                         }
+                        .buttonStyle(.plain)
                     }
                 }
+
+                activitySection
             }
             .padding(Lovio.Metrics.screenPadding)
         }
         .scrollIndicators(.hidden)
         .navigationTitle("Widgets")
         .sheet(isPresented: $showPaywall) { PaywallView(source: "widget_gallery") }
+        .sheet(item: $howToSpec) { spec in
+            WidgetHowToSheet(spec: spec)
+        }
         .onAppear {
             model.services.analytics.track(.widgetGalleryViewed)
             model.publishWidgetSnapshot()
+        }
+        .task { await loadEvents() }
+        .refreshable {
+            await model.syncIncomingWidgetContent()
+            await loadEvents()
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -114,12 +136,84 @@ struct WidgetGalleryView: View {
                 // Downscale: widgets have tight memory limits (~30 MB).
                 let jpeg = image.downscaled(maxDimension: 800).jpegData(compressionQuality: 0.82)
                 if let jpeg {
-                    WidgetContent.savePhoto(jpeg)
+                    await model.sendWidgetPhoto(jpeg)
                     Haptics.success()
                     withAnimation(.smooth) { photoSaved = true }
                     model.services.analytics.track(.widgetInteraction(widget: "polaroid", action: "photo_set"))
+                    await loadEvents()
                 }
             }
+        }
+    }
+
+    private func loadEvents() async {
+        guard let rel = model.relationship else { return }
+        let all = (try? await model.services.relationship.recentEvents(relationship: rel.id, limit: 30)) ?? []
+        events = all.filter { Self.eventText($0.kind) != nil }
+    }
+
+    // MARK: Between you two — history of what was sent back and forth
+
+    @ViewBuilder
+    private var activitySection: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Between you two", systemImage: "arrow.up.arrow.down.circle.fill")
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(Lovio.Palette.rose)
+
+                if events.isEmpty {
+                    Text("Everything you send each other — notes, photos, miss-yous, moods — shows up here.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(events.prefix(12), id: \.id) { event in
+                        HStack(spacing: 10) {
+                            Image(systemName: Self.eventSymbol(event.kind))
+                                .font(.subheadline)
+                                .foregroundStyle(Lovio.Palette.rose)
+                                .frame(width: 24)
+                            Text("\(event.actorID == model.user?.id ? "You" : (model.partnerFirstName ?? "Partner")) \(Self.eventText(event.kind) ?? "")")
+                                .font(Lovio.Type_.body)
+                            Spacer()
+                            Text(event.occurredAt, style: .relative)
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func eventText(_ kind: RelationshipEventKind) -> String? {
+        switch kind {
+        case .widgetPhotoSent: "changed the Polaroid photo"
+        case .widgetNoteSent: "sent a widget note"
+        case .missYouSent: "sent a miss you 🥺"
+        case .heartTap: "dropped a heart in the jar"
+        case .questionAnswered: "answered the daily question"
+        case .moodLogged: "checked in a mood"
+        case .journalEntryAdded: "saved a memory"
+        case .milestoneAdded: "added a milestone"
+        case .gamePlayed: "played a game"
+        case .dateCompleted, .bucketItemCompleted: "completed a plan"
+        case .widgetInteraction, .appOpened: nil
+        }
+    }
+
+    private static func eventSymbol(_ kind: RelationshipEventKind) -> String {
+        switch kind {
+        case .widgetPhotoSent: "photo.fill"
+        case .widgetNoteSent: "envelope.fill"
+        case .missYouSent: "paperplane.fill"
+        case .heartTap: "heart.fill"
+        case .questionAnswered: "bubble.left.and.bubble.right.fill"
+        case .moodLogged: "face.smiling"
+        case .journalEntryAdded: "book.fill"
+        case .milestoneAdded: "flag.fill"
+        case .gamePlayed: "gamecontroller.fill"
+        default: "sparkles"
         }
     }
 
@@ -151,8 +245,10 @@ struct WidgetGalleryView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(photoSaved
-                             ? "Saved! It's live on your Polaroid widget."
-                             : "Pick a favorite moment — it appears on the Polaroid widget.")
+                             ? "Sent! It's on your Polaroid widget\(model.isPaired ? " — and \(model.partnerFirstName ?? "your partner")'s too" : "")."
+                             : model.isPaired
+                               ? "Appears on BOTH your Polaroid widgets. Only you two can ever see it."
+                               : "Pick a favorite moment — it appears on your Polaroid widget.")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.secondary)
 
@@ -186,14 +282,18 @@ struct WidgetGalleryView: View {
 
                 HStack {
                     Text(noteSaved
-                         ? "On your widgets ✓"
-                         : "Shows on the Secret Message and Polaroid widgets.")
+                         ? "Sent to \(model.isPaired ? "both your widgets" : "your widgets") ✓"
+                         : model.isPaired
+                           ? "Lands on \(model.partnerFirstName ?? "your partner")'s Secret Message widget too."
+                           : "Shows on the Secret Message and Polaroid widgets.")
                         .font(Lovio.Type_.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
-                        WidgetContent.saveNote(note)
-                        model.publishWidgetSnapshot()
+                        Task {
+                            await model.sendWidgetNote(note)
+                            await loadEvents()
+                        }
                         Haptics.success()
                         withAnimation(.smooth) { noteSaved = true }
                         model.services.analytics.track(.widgetInteraction(widget: "secret_message", action: "note_set"))
@@ -219,6 +319,149 @@ struct WidgetGalleryView: View {
             Text(text)
                 .font(Lovio.Type_.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Notification settings
+//
+// Every locally-scheduled push can be turned off here; the daily reminder
+// time is user-adjustable (defaults to the remote-config experiment hour).
+
+struct NotificationSettingsView: View {
+    @Environment(AppModel.self) private var model
+
+    @AppStorage(NotificationManager.Pref.dailyEnabled) private var dailyEnabled = true
+    @AppStorage(NotificationManager.Pref.eventsEnabled) private var eventsEnabled = true
+    @AppStorage(NotificationManager.Pref.offersEnabled) private var offersEnabled = true
+    @State private var reminderTime = Date()
+
+    private var defaultHour: Int {
+        Int(model.services.experiments.variant(for: "daily_reminder_hour")) ?? 20
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Daily question reminder", isOn: $dailyEnabled)
+                if dailyEnabled {
+                    DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                }
+            } header: {
+                Text("Daily question")
+            } footer: {
+                Text("One reminder per day so you never lose your streak.")
+            }
+
+            Section {
+                Toggle("Event reminders", isOn: $eventsEnabled)
+            } footer: {
+                Text("The day before and the morning of your countdowns, birthdays and anniversaries.")
+            }
+
+            Section {
+                Toggle("Offers & tips", isOn: $offersEnabled)
+            } footer: {
+                Text("Occasional premium offers and feature tips. Never more than one a week.")
+            }
+
+            Section {
+                Label("Partner answered the daily question", systemImage: "bubble.left.and.bubble.right")
+                Label("Partner logged a mood", systemImage: "face.smiling")
+                Label("Miss you & heart taps", systemImage: "heart")
+                Label("New widget photo or note", systemImage: "photo")
+            } header: {
+                Text("From your partner")
+            } footer: {
+                Text("These arrive automatically from your partner's actions and are controlled in iOS Settings → Notifications → Missuo.")
+            }
+        }
+        .navigationTitle("Notifications")
+        .onAppear {
+            let defaults = UserDefaults.standard
+            let hour = defaults.object(forKey: NotificationManager.Pref.dailyHour) != nil
+                ? defaults.integer(forKey: NotificationManager.Pref.dailyHour) : defaultHour
+            let minute = defaults.integer(forKey: NotificationManager.Pref.dailyMinute)
+            reminderTime = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: .now) ?? .now
+        }
+        .onChange(of: reminderTime) { _, time in
+            let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+            UserDefaults.standard.set(components.hour ?? defaultHour, forKey: NotificationManager.Pref.dailyHour)
+            UserDefaults.standard.set(components.minute ?? 0, forKey: NotificationManager.Pref.dailyMinute)
+            Task { await NotificationManager.shared.applyDailyReminder(defaultHour: defaultHour) }
+        }
+        .onChange(of: dailyEnabled) { _, _ in
+            Task { await NotificationManager.shared.applyDailyReminder(defaultHour: defaultHour) }
+        }
+        .onChange(of: eventsEnabled) { _, _ in
+            Task { await NotificationManager.shared.scheduleEventReminders(dates: model.upcomingDates) }
+        }
+        .onChange(of: offersEnabled) { _, _ in
+            if !offersEnabled {
+                NotificationManager.shared.cancelMonetizationReminders()
+            } else {
+                NotificationManager.shared.scheduleWeeklyPremiumNudge(isPremium: model.premium.isPremium)
+            }
+        }
+    }
+}
+
+// MARK: - Widget how-to sheet
+//
+// iOS doesn't let apps place widgets programmatically, so tapping a widget
+// walks the user through doing it themselves — step by step, per widget.
+
+struct WidgetHowToSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let spec: WidgetGalleryView.WidgetSpec
+
+    var body: some View {
+        VStack(spacing: 22) {
+            Capsule().fill(.tertiary).frame(width: 36, height: 5).padding(.top, 10)
+
+            Image(systemName: spec.symbol)
+                .font(.system(size: 44))
+                .foregroundStyle(spec.tint)
+                .frame(width: 92, height: 92)
+                .background(RoundedRectangle(cornerRadius: 24).fill(.ultraThinMaterial))
+
+            VStack(spacing: 6) {
+                Text(spec.title).font(Lovio.Type_.title)
+                Text(spec.subtitle)
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                step(1, "Go to your home screen and touch and hold an empty spot until the apps jiggle")
+                step(2, "Tap the + button in the top-left corner")
+                step(3, "Search for \"Missuo\"")
+                step(4, "Swipe to \(spec.title), pick a size, then tap Add Widget")
+            }
+            .padding(18)
+            .background(RoundedRectangle(cornerRadius: 20).fill(.ultraThinMaterial))
+
+            Text("Apple doesn't allow apps to add widgets for you — it only takes a few seconds by hand.")
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+
+            Button("Got it") { dismiss() }
+                .buttonStyle(LovioPrimaryButtonStyle())
+
+            Spacer(minLength: 0)
+        }
+        .padding(Lovio.Metrics.screenPadding)
+        .presentationDetents([.large])
+    }
+
+    private func step(_ n: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(n)")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(spec.tint.opacity(0.2)))
+            Text(text).font(Lovio.Type_.body)
         }
     }
 }
@@ -273,9 +516,8 @@ struct SettingsView: View {
             }
 
             Section("Notifications") {
-                NavigationLink("Daily question reminder") {
-                    Text("Reminder time is remote-config driven (experiment: daily_reminder_hour).")
-                        .padding()
+                NavigationLink("Notifications & reminders") {
+                    NotificationSettingsView()
                 }
             }
 
