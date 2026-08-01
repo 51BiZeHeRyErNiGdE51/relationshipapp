@@ -65,6 +65,14 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bsekapps.lovio
+        # User-visible product/bundle name (App Store Connect, Transporter).
+        # The Xcode target keeps its internal "Lovio" name; module stays stable.
+        PRODUCT_NAME: Missuo
+        PRODUCT_MODULE_NAME: Lovio
+        # iPhone-only. XcodeGen overrides project-level device family with
+        # "1,2" at the target level, which trips App Store validation
+        # (ITMS-90474: iPad multitasking needs all four orientations).
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/Lovio.entitlements
@@ -82,6 +90,9 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # Opts out of iPad multitasking — belt-and-suspenders with the
+        # iPhone-only device family for App Store validation.
+        UIRequiresFullScreen: true
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
         NSUserTrackingUsageDescription: "We use this to measure ads and improve Missuo. Your relationship data is never sold."
@@ -130,6 +141,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bsekapps.lovio.widgets
+        PRODUCT_NAME: MissuoWidgets
+        PRODUCT_MODULE_NAME: LovioWidgets
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/LovioWidgets.entitlements
         CURRENT_PROJECT_VERSION: 2
