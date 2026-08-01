@@ -75,6 +75,9 @@ final class AppModel {
     private(set) var upcomingDates: [SpecialDate] = []
 
     var errorMessage: String?
+    /// True when the initial session couldn't be established (offline, rules
+    /// misconfigured…) — the loading screen shows a Try Again button.
+    private(set) var startupFailed = false
 
     init(services: Services, isDemoMode: Bool) {
         self.services = services
@@ -103,12 +106,19 @@ final class AppModel {
     // relationship (with invite code) are created silently behind it.
 
     private static let onboardingCompletedKey = "lovio.onboarding.completed"
+    /// Bump when onboarding logic changes so existing installs get a clean replay once.
+    private static let onboardingFlowVersionKey = "missuo.onboarding.flowVersion"
+    private static let onboardingFlowVersion = 2
 
     var isPaired: Bool { relationship?.status == .active }
 
     func start() async {
         services.analytics.track(.appOpened)
-        await services.experiments.refresh()
+        // Remote Config only powers non-critical experiments (paywall copy,
+        // reminder hour) — refresh in the background, NEVER block first paint.
+        Task { await services.experiments.refresh() }
+
+        migrateOnboardingFlowIfNeeded()
 
         // UI-test hook: jump straight past onboarding.
         if ProcessInfo.processInfo.arguments.contains("-uitest-completed-onboarding") {
@@ -116,20 +126,21 @@ final class AppModel {
         }
 
         if !UserDefaults.standard.bool(forKey: Self.onboardingCompletedKey) {
-            // Returning user (reinstall, cleared defaults, opened via widget):
-            // Firebase Auth survives in the keychain, so don't replay the
-            // tutorial — restore their session directly.
-            if !isDemoMode, await services.auth.currentUser() != nil {
-                UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
-            } else {
-                services.analytics.track(.onboardingStarted)
-                phase = .onboarding
-                return
-            }
+            services.analytics.track(.onboardingStarted)
+            phase = .onboarding
+            return
         }
         await ensureSession()
         await drainWidgetOutbox()
         NotificationManager.shared.scheduleWeeklyPremiumNudge(isPremium: premium.isPremium)
+    }
+
+    /// One-time reset for installs that skipped the tutorial via an old Firebase shortcut.
+    private func migrateOnboardingFlowIfNeeded() {
+        guard UserDefaults.standard.integer(forKey: Self.onboardingFlowVersionKey)
+                < Self.onboardingFlowVersion else { return }
+        UserDefaults.standard.set(false, forKey: Self.onboardingCompletedKey)
+        UserDefaults.standard.set(Self.onboardingFlowVersion, forKey: Self.onboardingFlowVersionKey)
     }
 
     // MARK: Secondary offer window (7 days from first paywall decline)
@@ -163,6 +174,7 @@ final class AppModel {
     /// Guarantees: a signed-in user (anonymous if needed), a profile document,
     /// and a relationship with an invite code. Safe to call repeatedly.
     func ensureSession() async {
+        startupFailed = false
         do {
             var current = await services.auth.currentUser()
             if current == nil {
@@ -206,6 +218,8 @@ final class AppModel {
             await refreshToday()
         } catch {
             errorMessage = Self.userFacingMessage(for: error)
+            // Never strand the user on the logo screen — surface a retry.
+            if phase == .loading { startupFailed = true }
         }
     }
 
@@ -224,6 +238,8 @@ final class AppModel {
     /// the partner code can be entered later from the Home screen.
     func completeOnboarding(partnerCode: String?) async {
         UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
+        // Paywall already shown in onboarding — don't immediately show again on Home.
+        UserDefaults.standard.set(true, forKey: "lovio.paywall.skipSessionStartOnce")
         await ensureSession()
         if let code = partnerCode, !code.trimmingCharacters(in: .whitespaces).isEmpty {
             await joinRelationship(code: code)

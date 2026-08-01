@@ -56,6 +56,16 @@ struct OnboardingFlowView: View {
 
     private var tutorial: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                MissuoLogoMark(size: 36, shadow: false)
+                Text("Missuo")
+                    .font(Lovio.Type_.title)
+                    .foregroundStyle(Lovio.Palette.plum)
+                Spacer()
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+            .padding(.top, 12)
+
             TabView(selection: $page) {
                 ForEach(Array(pages.enumerated()), id: \.offset) { index, item in
                     VStack(spacing: 26) {

@@ -17,6 +17,22 @@ struct RootView: View {
                     Text("Missuo")
                         .font(Lovio.Type_.display)
                         .foregroundStyle(Lovio.Palette.plum)
+                    if model.startupFailed {
+                        Text("We couldn't connect. Check your internet and try again.")
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        Button("Try Again") {
+                            Task { await model.start() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Lovio.Palette.rose)
+                    } else {
+                        ProgressView()
+                            .tint(Lovio.Palette.rose)
+                            .padding(.top, 4)
+                    }
                 }
                 .transition(.opacity)
 
@@ -69,6 +85,10 @@ struct MainTabView: View {
             PaywallView(source: "session_start")
         }
         .onAppear {
+            if UserDefaults.standard.bool(forKey: "lovio.paywall.skipSessionStartOnce") {
+                UserDefaults.standard.set(false, forKey: "lovio.paywall.skipSessionStartOnce")
+                return
+            }
             // Soft paywall exposure for free users — at most once per day.
             let key = "lovio.paywall.lastShownDay"
             let today = DayKey.today()
