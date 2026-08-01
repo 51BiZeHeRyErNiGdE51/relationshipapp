@@ -115,6 +115,7 @@ struct WidgetGalleryView: View {
             .padding(Lovio.Metrics.screenPadding)
         }
         .scrollIndicators(.hidden)
+        .dismissableKeyboard()
         .navigationTitle("Widgets")
         .sheet(isPresented: $showPaywall) { PaywallView(source: "widget_gallery") }
         .sheet(item: $howToSpec) { spec in

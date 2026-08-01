@@ -250,7 +250,14 @@ final class AppModel {
             }
             services.analytics.setUserProperty(premium.isPremium ? "premium" : "free",
                                                forName: "subscription_tier")
-            phase = .active
+            // Only enter the main app once onboarding is truly finished.
+            // (The onboarding pairing step calls ensureSession() for its silent
+            // sign-in — flipping to .active here used to yank users out of
+            // onboarding before the completed flag was set, so every relaunch
+            // replayed the tutorial.)
+            if UserDefaults.standard.bool(forKey: Self.onboardingCompletedKey) {
+                phase = .active
+            }
             await refreshToday()
         } catch {
             errorMessage = Self.userFacingMessage(for: error)
@@ -604,6 +611,28 @@ final class AppModel {
 }
 
 // MARK: - Haptics
+
+// MARK: - Keyboard dismissal
+//
+// iOS keyboards have no built-in close button. Every screen with text input
+// gets: a "Done" button above the keyboard + drag-down-to-dismiss on scrolls.
+
+extension View {
+    func dismissableKeyboard() -> some View {
+        self.scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder),
+                            to: nil, from: nil, for: nil)
+                    }
+                    .font(.body.weight(.semibold))
+                }
+            }
+    }
+}
 
 enum Haptics {
     static func light() {

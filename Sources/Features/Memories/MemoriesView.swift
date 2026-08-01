@@ -217,6 +217,7 @@ struct JournalComposerView: View {
             }
             .navigationTitle("New Memory")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -377,6 +378,7 @@ struct MilestoneEditor: View {
             }
             .navigationTitle("New Milestone")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }
                 Task {

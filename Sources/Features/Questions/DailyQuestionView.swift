@@ -39,6 +39,7 @@ struct DailyQuestionView: View {
             .background(Lovio.Gradients.ambient(.light).ignoresSafeArea())
             .navigationTitle("Daily Question")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }

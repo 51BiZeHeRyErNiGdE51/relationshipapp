@@ -146,7 +146,7 @@ struct PairingStepView: View {
             .padding(.horizontal, Lovio.Metrics.screenPadding)
             .padding(.bottom, 30)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .dismissableKeyboard()
         .task { await model.ensureSession() }   // silent anonymous sign-in + invite code
     }
 
@@ -288,6 +288,7 @@ struct JoinPartnerSheet: View {
             .disabled(code.count < 6 || isWorking)
             Spacer()
         }
+        .dismissableKeyboard()
         .presentationDetents([.medium])
         .presentationBackground(.thinMaterial)
     }

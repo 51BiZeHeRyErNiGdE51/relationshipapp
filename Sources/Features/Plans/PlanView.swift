@@ -282,6 +282,7 @@ struct SpecialDateEditor: View {
             }
             .navigationTitle("New Countdown")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -324,6 +325,7 @@ struct BucketItemEditor: View {
             }
             .navigationTitle("Bucket List")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -367,6 +369,7 @@ struct NoteEditor: View {
             }
             .navigationTitle(note == nil ? "New Note" : "Edit Note")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

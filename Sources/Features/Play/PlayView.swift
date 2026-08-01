@@ -273,6 +273,7 @@ struct AICoachView: View {
             .padding(Lovio.Metrics.screenPadding)
         }
         .scrollIndicators(.hidden)
+        .dismissableKeyboard()
         .navigationTitle("AI Coach")
         .sheet(isPresented: $showPaywall) { PaywallView(source: "ai_coach") }
         .task { await load() }
