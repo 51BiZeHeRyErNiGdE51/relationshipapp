@@ -186,7 +186,7 @@ public enum WidgetContent {
             // A fresh note from them re-seals the Secret Message widget.
             AppGroup.defaults.removeObject(forKey: "lovio.secret.revealed")
         }
-        reloadTimelines()
+        reloadContentWidgets(slot)
     }
 
     public static func photoURL(_ slot: Slot) -> URL? {
@@ -200,7 +200,7 @@ public enum WidgetContent {
         guard let url = photoURL(slot) else { return }
         try? data.write(to: url, options: .atomic)
         AppGroup.defaults.set(Date(), forKey: "lovio.widget.photo.\(slot.rawValue).updatedAt")
-        reloadTimelines()
+        reloadContentWidgets(slot)
     }
 
     public static func loadPhoto(_ slot: Slot) -> Data? {
@@ -212,16 +212,25 @@ public enum WidgetContent {
             try? FileManager.default.removeItem(at: url)
         }
         AppGroup.defaults.removeObject(forKey: "lovio.widget.photo.\(slot.rawValue).updatedAt")
-        reloadTimelines()
+        reloadContentWidgets(slot)
     }
 
     public static func hasPhoto(_ slot: Slot) -> Bool {
         photoURL(slot).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
 
-    private static func reloadTimelines() {
+    /// Targeted reloads: blanket reloadAllTimelines() burns the WidgetKit
+    /// refresh budget and iOS starts throttling — which shows up as "I set a
+    /// photo but the widget didn't change". Only poke the affected kinds.
+    private static func reloadContentWidgets(_ slot: Slot) {
         #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadAllTimelines()
+        switch slot {
+        case .mine:
+            WidgetCenter.shared.reloadTimelines(ofKind: "polaroid_mine")
+        case .partner:
+            WidgetCenter.shared.reloadTimelines(ofKind: "polaroid_partner")
+            WidgetCenter.shared.reloadTimelines(ofKind: "secret_message")
+        }
         #endif
     }
 }

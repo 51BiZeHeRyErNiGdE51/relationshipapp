@@ -94,14 +94,39 @@ final class AppModel {
         return AppModel(services: hasFirebase ? .live() : .demo(), isDemoMode: !hasFirebase)
     }
 
-    var partnerName: String { partnerProfile?.displayName ?? "Your partner" }
-    var myName: String { myProfile?.displayName ?? user?.displayName ?? "You" }
+    var partnerName: String {
+        let name = partnerProfile?.displayName ?? ""
+        return name.isEmpty ? "Your partner" : name
+    }
+    var myName: String {
+        let name = myProfile?.displayName ?? user?.displayName ?? ""
+        return name.isEmpty ? "You" : name
+    }
+
+    /// Anonymous sign-in means nobody typed a name; Home shows a one-time
+    /// card until they do (editable later in Settings).
+    var needsMyName: Bool {
+        user != nil &&
+        (myProfile?.displayName ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Saves my display name — it syncs to my partner's app (their "partner
+    /// name") and to the widgets on both phones.
+    func updateMyName(_ name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var profile = myProfile else { return }
+        profile.displayName = trimmed
+        try? await services.relationship.updateProfile(profile)
+        myProfile = profile
+        publishWidgetSnapshot()
+    }
 
     /// First names for copy. `partnerFirstName` is nil when unpaired so call
     /// sites can choose their own fallback ("your partner", "Partner", …).
     var myFirstName: String { myName.split(separator: " ").first.map(String.init) ?? "You" }
     var partnerFirstName: String? {
-        partnerProfile?.displayName.split(separator: " ").first.map(String.init)
+        let name = partnerProfile?.displayName ?? ""
+        return name.isEmpty ? nil : name.split(separator: " ").first.map(String.init)
     }
 
     // MARK: Session lifecycle
@@ -321,6 +346,13 @@ final class AppModel {
 
     func joinRelationship(code: String) async {
         guard let user else { return }
+        // Instant feedback when someone enters their own code.
+        let normalized = code.replacingOccurrences(of: "-", with: "")
+            .trimmingCharacters(in: .whitespaces).uppercased()
+        if let mine = relationship?.inviteCode?.value.uppercased(), mine == normalized {
+            errorMessage = LovioError.cantPairWithSelf.errorDescription
+            return
+        }
         do {
             // Production note: joining abandons the user's own pending
             // relationship; a Cloud Function should garbage-collect it.
@@ -509,18 +541,22 @@ final class AppModel {
     /// Saves the photo to MY "My Polaroid" widget instantly, then uploads it so
     /// it lands on my partner's "From Your Love" widget. Photos are visible
     /// ONLY to the two members (enforced by Storage rules).
+    /// Returns as soon as the local widget is updated — the upload to the
+    /// partner runs in the background so the UI confirms without waiting.
     func sendWidgetPhoto(_ jpeg: Data) async {
         WidgetContent.savePhoto(jpeg, slot: .mine)
         guard let rel = relationship, let me = user else { return }
-        guard let path = try? await services.relationship.uploadImage(
-            jpeg, relationship: rel.id, fileName: "widget_photo.jpg") else { return }
-        var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
-        content.photoPath = path
-        content.photoAuthorID = me.id
-        content.photoUpdatedAt = .now
-        try? await services.relationship.saveWidgetContent(content, relationship: rel.id)
-        try? await services.relationship.record(
-            event: RelationshipEvent(kind: .widgetPhotoSent, actorID: me.id), relationship: rel.id)
+        Task {
+            guard let path = try? await services.relationship.uploadImage(
+                jpeg, relationship: rel.id, fileName: "widget_photo.jpg") else { return }
+            var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
+            content.photoPath = path
+            content.photoAuthorID = me.id
+            content.photoUpdatedAt = .now
+            try? await services.relationship.saveWidgetContent(content, relationship: rel.id)
+            try? await services.relationship.record(
+                event: RelationshipEvent(kind: .widgetPhotoSent, actorID: me.id), relationship: rel.id)
+        }
     }
 
     /// Pulls partner-sent widget content onto THIS device (called on refresh

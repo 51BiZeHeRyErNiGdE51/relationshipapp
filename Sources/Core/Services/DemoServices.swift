@@ -239,7 +239,8 @@ public struct DemoRelationshipService: RelationshipService {
         var r = await DemoStore.shared.relationship
         guard r.inviteCode?.value.caseInsensitiveCompare(code.replacingOccurrences(of: "-", with: "")) == .orderedSame
         else { throw LovioError.invalidInviteCode }
-        if !r.memberIDs.contains(joiner) { r.memberIDs.append(joiner) }
+        guard !r.memberIDs.contains(joiner) else { throw LovioError.cantPairWithSelf }
+        r.memberIDs.append(joiner)
         r.status = .active
         await DemoStore.shared.setRelationship(r)
         return r
@@ -524,6 +525,7 @@ public struct DemoExperimentsService: ExperimentsService {
 
 public enum LovioError: LocalizedError {
     case invalidInviteCode
+    case cantPairWithSelf
     case relationshipFull
     case notSignedIn
     case premiumRequired
@@ -531,6 +533,7 @@ public enum LovioError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidInviteCode: "That invite code doesn't look right. Double-check it with your partner."
+        case .cantPairWithSelf: "That's your own code 😄 Share it with your partner and have them enter it on their phone."
         case .relationshipFull: "This relationship already has two partners."
         case .notSignedIn: "Please sign in first."
         case .premiumRequired: "This feature is part of Missuo Premium."

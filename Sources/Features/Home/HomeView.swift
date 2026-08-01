@@ -12,11 +12,13 @@ struct HomeView: View {
     @State private var missYouBurst = false
     @State private var showJoinSheet = false
     @State private var showOfferPaywall = false
+    @State private var nameDraft = ""
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 header
+                nameCaptureCard
                 if model.isPaired { coupleHero } else { pairingHero }
                 notificationNudgeCard
                 questionCard
@@ -190,6 +192,50 @@ struct HomeView: View {
             RoundedRectangle(cornerRadius: Lovio.Metrics.cornerRadius)
                 .fill(Lovio.Gradients.hero)
                 .shadow(color: Lovio.Palette.rose.opacity(0.35), radius: 18, y: 8)
+        }
+    }
+
+    // MARK: Name capture — one-time card; closes forever once saved
+    //
+    // Onboarding never asks for a name (kept frictionless), so this is where
+    // "You" and "L" become real names. Editable later in Settings.
+
+    @ViewBuilder
+    private var nameCaptureCard: some View {
+        if model.needsMyName {
+            GlassCard(tint: Lovio.Palette.lavender) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("What should we call you?", systemImage: "person.crop.circle.badge.plus")
+                        .font(Lovio.Type_.headline)
+                        .foregroundStyle(Lovio.Palette.lavender)
+                    Text("Your partner sees this name in the app and on their widgets.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        TextField("Your first name", text: $nameDraft)
+                            .textInputAutocapitalization(.words)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(RoundedRectangle(cornerRadius: 14).fill(.ultraThinMaterial))
+                            .onSubmit { saveName() }
+                        Button("Save") { saveName() }
+                            .font(Lovio.Type_.caption.weight(.semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Capsule().fill(Lovio.Palette.lavender.opacity(0.25)))
+                            .disabled(nameDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveName() {
+        let name = nameDraft
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        Task {
+            await model.updateMyName(name)
+            Haptics.success()
         }
     }
 

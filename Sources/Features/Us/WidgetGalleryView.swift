@@ -522,13 +522,21 @@ extension UIImage {
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var showEndRelationship = false
+    @State private var nameDraft = ""
 
     var body: some View {
         List {
-            if let code = model.relationship?.inviteCode?.display {
-                Section("Your couple") {
+            Section {
+                TextField("Your name", text: $nameDraft)
+                    .textInputAutocapitalization(.words)
+                    .onSubmit { Task { await model.updateMyName(nameDraft) } }
+                if let code = model.relationship?.inviteCode?.display {
                     LabeledContent("Invite code", value: code)
                 }
+            } header: {
+                Text("Your couple")
+            } footer: {
+                Text("Your name is what \(model.partnerFirstName ?? "your partner") sees in the app and on their widgets. Press return to save.")
             }
 
             Section("Subscription") {
@@ -573,6 +581,8 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .dismissableKeyboard()
+        .onAppear { nameDraft = model.needsMyName ? "" : model.myName }
         .confirmationDialog("End this relationship?", isPresented: $showEndRelationship,
                             titleVisibility: .visible) {
             Button("End relationship", role: .destructive) {

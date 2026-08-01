@@ -221,12 +221,14 @@ struct FirestoreRelationshipService: RelationshipService {
         }
         let ref = db.collection("relationships").document(relID)
         var relationship = try await ref.getDocument(as: Relationship.self)
-        guard relationship.memberIDs.count < 2 || relationship.memberIDs.contains(joiner) else {
+        // Entering your OWN code must never "activate" a solo relationship.
+        guard !relationship.memberIDs.contains(joiner) else {
+            throw LovioError.cantPairWithSelf
+        }
+        guard relationship.memberIDs.count < 2 else {
             throw LovioError.relationshipFull
         }
-        if !relationship.memberIDs.contains(joiner) {
-            relationship.memberIDs.append(joiner)
-        }
+        relationship.memberIDs.append(joiner)
         relationship.status = .active
         try ref.setData(from: relationship)
         return relationship
