@@ -13,10 +13,10 @@ struct RootView: View {
             switch model.phase {
             case .loading:
                 VStack(spacing: 16) {
-                    HeartPulse(size: 52)
+                    MissuoLogoMark(size: 88)
                     Text("Missuo")
                         .font(Lovio.Type_.display)
-                        .foregroundStyle(Lovio.Gradients.hero)
+                        .foregroundStyle(Lovio.Palette.plum)
                 }
                 .transition(.opacity)
 

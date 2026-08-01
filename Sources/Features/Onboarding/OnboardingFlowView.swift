@@ -9,7 +9,7 @@ import SwiftUI
 struct OnboardingFlowView: View {
     @Environment(AppModel.self) private var model
 
-    private enum Step { case tutorial, age, pairing }
+    private enum Step { case tutorial, pairing }
 
     @State private var step: Step = .tutorial
     @State private var page = 0
@@ -19,7 +19,6 @@ struct OnboardingFlowView: View {
         Group {
             switch step {
             case .tutorial: tutorial
-            case .age: AgeGateView { withAnimation(.smooth) { showPaywall = true } }
             case .pairing: PairingStepView()
             }
         }
@@ -28,12 +27,6 @@ struct OnboardingFlowView: View {
             withAnimation(.smooth) { step = .pairing }
         } content: {
             PaywallView(source: "onboarding")
-        }
-        .onAppear {
-            // Returning underage users land directly on the (blocked) age gate.
-            if let dob = AppModel.storedBirthday, AppModel.age(from: dob) < AppModel.minimumAge {
-                step = .age
-            }
         }
     }
 
@@ -73,10 +66,14 @@ struct OnboardingFlowView: View {
                                 .frame(width: 130, height: 130)
                                 .blur(radius: 46)
                                 .opacity(0.45)
-                            Image(systemName: item.symbol)
-                                .font(.system(size: 76))
-                                .foregroundStyle(Lovio.Gradients.hero)
-                                .symbolEffect(.pulse)
+                            if index == 0 {
+                                MissuoLogoMark(size: 112, shadow: true)
+                            } else {
+                                Image(systemName: item.symbol)
+                                    .font(.system(size: 76))
+                                    .foregroundStyle(Lovio.Gradients.hero)
+                                    .symbolEffect(.pulse)
+                            }
                         }
                         Text(item.title)
                             .font(Lovio.Type_.display)
@@ -101,87 +98,13 @@ struct OnboardingFlowView: View {
                 if page < pages.count - 1 {
                     withAnimation(.smooth) { page += 1 }
                 } else {
-                    withAnimation(.smooth) { step = .age }
+                    withAnimation(.smooth) { showPaywall = true }
                 }
             }
             .buttonStyle(LovioPrimaryButtonStyle())
             .padding(.horizontal, Lovio.Metrics.screenPadding)
             .padding(.bottom, 24)
         }
-    }
-}
-
-// MARK: - Age gate (16+)
-//
-// Stores date of birth, never an "is adult" boolean — age is recomputed on
-// every launch, so a 15-year-old is admitted automatically on their 16th
-// birthday, and the check stays valid as time passes.
-
-struct AgeGateView: View {
-    @Environment(AppModel.self) private var model
-    var onPassed: () -> Void
-
-    @State private var birthday = Calendar.current.date(byAdding: .year, value: -20, to: .now)!
-    @State private var isUnderage = AppModel.storedBirthday.map {
-        AppModel.age(from: $0) < AppModel.minimumAge
-    } ?? false
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            Image(systemName: isUnderage ? "hourglass" : "birthday.cake.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(Lovio.Gradients.hero)
-
-            if isUnderage {
-                Text("See you soon 💛")
-                    .font(Lovio.Type_.largeTitle)
-                Text("Missuo is for people aged \(AppModel.minimumAge) and up. Based on the birthday you entered, you can join on \(sixteenthBirthday.formatted(date: .long, time: .omitted)) — we'll be here.")
-                    .font(Lovio.Type_.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-
-                Button("I entered the wrong birthday") {
-                    withAnimation(.smooth) { isUnderage = false }
-                }
-                .font(Lovio.Type_.caption)
-                .foregroundStyle(.secondary)
-            } else {
-                Text("When were you born?")
-                    .font(Lovio.Type_.largeTitle)
-                Text("Missuo is for ages \(AppModel.minimumAge)+. We use your birthday only for this check and for anniversary magic later.")
-                    .font(Lovio.Type_.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-
-                DatePicker("Birthday", selection: $birthday, in: ...Date(),
-                           displayedComponents: .date)
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
-
-                Button("Continue") {
-                    if model.submitBirthday(birthday) {
-                        Haptics.light()
-                        onPassed()
-                    } else {
-                        Haptics.success()
-                        withAnimation(.smooth) { isUnderage = true }
-                    }
-                }
-                .buttonStyle(LovioPrimaryButtonStyle())
-                .padding(.horizontal, Lovio.Metrics.screenPadding)
-            }
-
-            Spacer()
-        }
-    }
-
-    private var sixteenthBirthday: Date {
-        guard let dob = AppModel.storedBirthday else { return .now }
-        return Calendar.current.date(byAdding: .year, value: AppModel.minimumAge, to: dob) ?? .now
     }
 }
 

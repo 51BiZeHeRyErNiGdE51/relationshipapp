@@ -154,6 +154,29 @@ public struct LovioSecondaryButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Brand mark
+
+/// App icon artwork — home screen, splash, loading, onboarding.
+public struct MissuoLogoMark: View {
+    public var size: CGFloat
+    public var shadow: Bool
+
+    public init(size: CGFloat = 72, shadow: Bool = true) {
+        self.size = size
+        self.shadow = shadow
+    }
+
+    public var body: some View {
+        Image("MissuoLogo")
+            .resizable()
+            .aspectRatio(1, contentMode: .fill)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.223, style: .continuous))
+            .shadow(color: .black.opacity(shadow ? 0.14 : 0), radius: size * 0.06, y: size * 0.03)
+            .accessibilityLabel("Missuo")
+    }
+}
+
 // MARK: - Heart Pulse
 
 /// The animated heartbeat used across Home + Love Pulse widget contexts.

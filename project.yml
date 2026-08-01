@@ -41,6 +41,8 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+    resources:
+      - path: Resources/Assets.xcassets
     dependencies:
       - target: LovioWidgets
       - package: Firebase
@@ -63,6 +65,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bsekapps.lovio
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/Lovio.entitlements
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0
@@ -72,7 +75,8 @@ targets:
       path: Config/Lovio-Info.plist
       properties:
         CFBundleDisplayName: Missuo
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIImageName: MissuoLogo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSSupportsLiveActivities: true
@@ -117,10 +121,13 @@ targets:
     sources:
       - path: Widgets
       - path: Sources/Shared
+    resources:
+      - path: Resources/Assets.xcassets
     dependencies: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bsekapps.lovio.widgets
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/LovioWidgets.entitlements
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0

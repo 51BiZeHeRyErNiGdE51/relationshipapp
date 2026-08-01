@@ -138,7 +138,7 @@ struct HomeView: View {
 
     private var pairingHero: some View {
         VStack(spacing: 14) {
-            HeartPulse(size: 34)
+            MissuoLogoMark(size: 56, shadow: false)
 
             Text("Missuo is better with your person")
                 .font(Lovio.Type_.title)
@@ -193,6 +193,7 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
+            MissuoLogoMark(size: 40, shadow: false)
             VStack(alignment: .leading, spacing: 2) {
                 Text(greeting)
                     .font(Lovio.Type_.headline)

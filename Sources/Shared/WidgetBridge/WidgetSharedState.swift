@@ -25,11 +25,16 @@ public enum AppGroup {
         #endif
     }
 
+    /// The real app-published snapshot, or nil if the app hasn't published yet.
+    public static func storedSnapshot() -> WidgetSnapshot? {
+        guard let data = defaults.data(forKey: snapshotKey) else { return nil }
+        return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    }
+
+    /// Home-screen widgets NEVER show fake data: real snapshot or honest empty.
+    /// (`.placeholder` is reserved for the widget-gallery preview.)
     public static func loadSnapshot() -> WidgetSnapshot {
-        guard let data = defaults.data(forKey: snapshotKey),
-              let snapshot = try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
-        else { return .placeholder }
-        return snapshot
+        storedSnapshot() ?? .empty
     }
 }
 
@@ -75,6 +80,12 @@ public struct WidgetSnapshot: Codable, Sendable {
 
     public var generatedAt: Date
 
+    // Added after v1 — optional so older stored snapshots still decode.
+    /// Nil/false → show "set your date" instead of a fake day count.
+    public var hasAnniversary: Bool?
+    /// Nil/false → pairing-focused empty states on partner widgets.
+    public var isPaired: Bool?
+
     public init(myName: String, partnerName: String, myInitials: String, partnerInitials: String,
                 daysTogether: Int, streakDays: Int, loveScore: Int, isPremium: Bool,
                 todayQuestion: String?, questionAnsweredByMe: Bool, questionAnsweredByPartner: Bool,
@@ -116,67 +127,116 @@ public struct WidgetSnapshot: Codable, Sendable {
         self.generatedAt = generatedAt
     }
 
-    public static let placeholder = WidgetSnapshot(
+    /// Pretty sample data — ONLY for the system widget gallery preview.
+    public static let placeholder: WidgetSnapshot = {
+        var s = WidgetSnapshot(
+            myName: "You", partnerName: "Your Love", myInitials: "Y", partnerInitials: "L",
+            daysTogether: 512, streakDays: 23, loveScore: 87, isPremium: false,
+            todayQuestion: "Pineapple belongs on pizza — agree?",
+            questionAnsweredByMe: false, questionAnsweredByPartner: true,
+            myMood: "😊", partnerMood: "🥰", myEnergy: 4, partnerEnergy: 3,
+            partnerBatteryPercent: 72, distanceKilometers: 4.2, daysSinceLastMeeting: 2,
+            bothRecentlyActive: true,
+            nextEventTitle: "Weekend in Rome", nextEventDate: Date().addingTimeInterval(86400 * 12),
+            latestNote: "Can't stop thinking about Saturday 🤍", missYouCountToday: 3, heartsInJar: 148,
+            companionKind: "love_garden", companionStageName: "Blooming", companionGrowth: 64,
+            lastMemoryTitle: "Sunset picnic at the pier", lastMemoryDate: Date().addingTimeInterval(-86400 * 3))
+        s.hasAnniversary = true
+        s.isPaired = true
+        return s
+    }()
+
+    /// What widgets render before the app has published anything real.
+    public static let empty = WidgetSnapshot(
         myName: "You", partnerName: "Your Love", myInitials: "Y", partnerInitials: "L",
-        daysTogether: 512, streakDays: 23, loveScore: 87, isPremium: false,
-        todayQuestion: "What tiny moment with me do you replay in your head?",
-        questionAnsweredByMe: false, questionAnsweredByPartner: true,
-        myMood: "😊", partnerMood: "🥰", myEnergy: 4, partnerEnergy: 3,
-        partnerBatteryPercent: 72, distanceKilometers: 4.2, daysSinceLastMeeting: 2,
-        bothRecentlyActive: true,
-        nextEventTitle: "Weekend in Rome", nextEventDate: Date().addingTimeInterval(86400 * 12),
-        latestNote: "Can't stop thinking about Saturday 🤍", missYouCountToday: 3, heartsInJar: 148,
-        companionKind: "love_garden", companionStageName: "Blooming", companionGrowth: 64,
-        lastMemoryTitle: "Sunset picnic at the pier", lastMemoryDate: Date().addingTimeInterval(-86400 * 3))
+        daysTogether: 0, streakDays: 0, loveScore: 0, isPremium: false,
+        todayQuestion: nil, questionAnsweredByMe: false, questionAnsweredByPartner: false,
+        myMood: nil, partnerMood: nil, myEnergy: 0, partnerEnergy: 0,
+        partnerBatteryPercent: nil, distanceKilometers: nil, daysSinceLastMeeting: nil,
+        bothRecentlyActive: false, nextEventTitle: nil, nextEventDate: nil,
+        latestNote: nil, missYouCountToday: 0, heartsInJar: 0,
+        companionKind: "love_garden", companionStageName: "Seed", companionGrowth: 0,
+        lastMemoryTitle: nil, lastMemoryDate: nil)
 }
 
 // MARK: - User-authored widget content (photo + note)
 //
-// The Widgets tab lets a user push a photo and a love note straight onto the
-// home screen. Stored in the App Group so the extension can read them.
+// Two directions, stored separately so the widgets are unambiguous:
+//   .mine    → what I uploaded (shows on MY "My Polaroid" widget; also synced
+//              to my partner, where it lands in THEIR .partner slot)
+//   .partner → what my partner sent me (shows on my "From Your Love" widget
+//              and the Secret Message widget)
 
 public enum WidgetContent {
-    private static let noteKey = "lovio.widget.note"
-    private static let photoFileName = "widget_photo.jpg"
-
-    public static var note: String? {
-        AppGroup.defaults.string(forKey: noteKey)
+    public enum Slot: String, Sendable {
+        case mine, partner
     }
 
-    public static func saveNote(_ text: String) {
+    private static func noteKey(_ slot: Slot) -> String { "lovio.widget.note.\(slot.rawValue)" }
+    private static func photoFileName(_ slot: Slot) -> String { "widget_photo_\(slot.rawValue).jpg" }
+
+    public static func note(_ slot: Slot) -> String? {
+        AppGroup.defaults.string(forKey: noteKey(slot))
+    }
+
+    public static func saveNote(_ text: String, slot: Slot) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        AppGroup.defaults.set(trimmed.isEmpty ? nil : trimmed, forKey: noteKey)
-        // A fresh note re-seals the Secret Message widget.
-        AppGroup.defaults.removeObject(forKey: "lovio.secret.revealed")
+        AppGroup.defaults.set(trimmed.isEmpty ? nil : trimmed, forKey: noteKey(slot))
+        if slot == .partner {
+            // A fresh note from them re-seals the Secret Message widget.
+            AppGroup.defaults.removeObject(forKey: "lovio.secret.revealed")
+        }
         reloadTimelines()
     }
 
-    public static var photoURL: URL? {
+    public static func photoURL(_ slot: Slot) -> URL? {
         FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier)?
-            .appendingPathComponent(photoFileName)
+            .appendingPathComponent(photoFileName(slot))
     }
 
     /// Expects pre-downscaled JPEG data (widgets have tight memory limits).
-    public static func savePhoto(_ data: Data) {
-        guard let url = photoURL else { return }
+    public static func savePhoto(_ data: Data, slot: Slot) {
+        guard let url = photoURL(slot) else { return }
         try? data.write(to: url, options: .atomic)
-        AppGroup.defaults.set(Date(), forKey: "lovio.widget.photo.updatedAt")
+        AppGroup.defaults.set(Date(), forKey: "lovio.widget.photo.\(slot.rawValue).updatedAt")
         reloadTimelines()
     }
 
-    public static func loadPhoto() -> Data? {
-        photoURL.flatMap { try? Data(contentsOf: $0) }
+    public static func loadPhoto(_ slot: Slot) -> Data? {
+        photoURL(slot).flatMap { try? Data(contentsOf: $0) }
     }
 
-    public static var hasPhoto: Bool {
-        photoURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+    public static func hasPhoto(_ slot: Slot) -> Bool {
+        photoURL(slot).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
 
     private static func reloadTimelines() {
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
         #endif
+    }
+}
+
+// MARK: - Miss You daily counter (app + widget intent both write here)
+
+public enum MissYouCounter {
+    private static let key = "lovio.missyou.day.v2"
+
+    public static func today() -> Int {
+        guard let stored = AppGroup.defaults.dictionary(forKey: key),
+              stored["day"] as? String == dayString() else { return 0 }
+        return stored["count"] as? Int ?? 0
+    }
+
+    public static func increment() {
+        AppGroup.defaults.set(["day": dayString(), "count": today() + 1], forKey: key)
+    }
+
+    private static func dayString() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: .now)
     }
 }
 

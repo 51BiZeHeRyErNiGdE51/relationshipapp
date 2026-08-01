@@ -12,7 +12,7 @@ struct WidgetGalleryView: View {
     @State private var showPaywall = false
     @State private var photoItem: PhotosPickerItem?
     @State private var photoSaved = false
-    @State private var note = WidgetContent.note ?? ""
+    @State private var note = WidgetContent.note(.mine) ?? ""
     @State private var noteSaved = false
     @State private var howToSpec: WidgetSpec?
     @State private var events: [RelationshipEvent] = []
@@ -28,7 +28,8 @@ struct WidgetGalleryView: View {
 
     private let specs: [WidgetSpec] = [
         .init(id: "love_days", title: "Love Days", subtitle: "Days together, always in sight", symbol: "heart.fill", tint: Lovio.Palette.rose, isPremium: false),
-        .init(id: "polaroid", title: "Polaroid", subtitle: "Your photo + note on the home screen", symbol: "photo.on.rectangle.angled", tint: Lovio.Palette.peach, isPremium: false),
+        .init(id: "polaroid_mine", title: "My Polaroid", subtitle: "The photo YOU picked — on your screen", symbol: "photo.on.rectangle.angled", tint: Lovio.Palette.peach, isPremium: false),
+        .init(id: "polaroid_partner", title: "From Your Love", subtitle: "The photo your PARTNER sent you", symbol: "photo.artframe", tint: Lovio.Palette.rose, isPremium: false),
         .init(id: "love_pulse", title: "Love Pulse", subtitle: "Heart beats when you're both online", symbol: "waveform.path.ecg.rectangle.fill", tint: Lovio.Palette.rose, isPremium: true),
         .init(id: "open_question", title: "Open Question", subtitle: "Today's question, no app needed", symbol: "bubble.left.and.bubble.right.fill", tint: Lovio.Palette.lavender, isPremium: true),
         .init(id: "mood_sync", title: "Mood Sync", subtitle: "Both moods + energy, side by side", symbol: "face.smiling.inverse", tint: Lovio.Palette.teal, isPremium: true),
@@ -132,7 +133,10 @@ struct WidgetGalleryView: View {
             guard let item else { return }
             Task {
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else { return }
+                      let image = UIImage(data: data) else {
+                    model.errorMessage = "Couldn't load that photo — if it's in iCloud, wait for it to download in Photos and try again."
+                    return
+                }
                 // Downscale: widgets have tight memory limits (~30 MB).
                 let jpeg = image.downscaled(maxDimension: 800).jpegData(compressionQuality: 0.82)
                 if let jpeg {
@@ -227,7 +231,7 @@ struct WidgetGalleryView: View {
                     .foregroundStyle(Lovio.Palette.peach)
 
                 HStack(spacing: 14) {
-                    if let data = WidgetContent.loadPhoto(), let image = UIImage(data: data) {
+                    if let data = WidgetContent.loadPhoto(.mine), let image = UIImage(data: data) {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
@@ -245,15 +249,15 @@ struct WidgetGalleryView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(photoSaved
-                             ? "Sent! It's on your Polaroid widget\(model.isPaired ? " — and \(model.partnerFirstName ?? "your partner")'s too" : "")."
+                             ? "Done! It's on your My Polaroid widget\(model.isPaired ? ", and lands on \(model.partnerFirstName ?? "your partner")'s From Your Love widget" : "")."
                              : model.isPaired
-                               ? "Appears on BOTH your Polaroid widgets. Only you two can ever see it."
-                               : "Pick a favorite moment — it appears on your Polaroid widget.")
+                               ? "Shows on YOUR \"My Polaroid\" widget and on \(model.partnerFirstName ?? "your partner")'s \"From Your Love\" widget. Only you two can see it."
+                               : "Shows on your \"My Polaroid\" widget now — and on your partner's \"From Your Love\" widget once you pair.")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.secondary)
 
                         PhotosPicker(selection: $photoItem, matching: .images) {
-                            Label(WidgetContent.hasPhoto ? "Change photo" : "Choose photo",
+                            Label(WidgetContent.hasPhoto(.mine) ? "Change photo" : "Choose photo",
                                   systemImage: "photo.badge.plus")
                                 .font(Lovio.Type_.caption)
                                 .padding(.horizontal, 14)
@@ -282,10 +286,10 @@ struct WidgetGalleryView: View {
 
                 HStack {
                     Text(noteSaved
-                         ? "Sent to \(model.isPaired ? "both your widgets" : "your widgets") ✓"
+                         ? "Sent ✓ It's on your My Polaroid caption\(model.isPaired ? " and \(model.partnerFirstName ?? "your partner")'s Secret Message widget" : "")."
                          : model.isPaired
-                           ? "Lands on \(model.partnerFirstName ?? "your partner")'s Secret Message widget too."
-                           : "Shows on the Secret Message and Polaroid widgets.")
+                           ? "Lands on \(model.partnerFirstName ?? "your partner")'s Secret Message widget, blurred until they tap."
+                           : "Captions your My Polaroid widget — and reaches your partner once you pair.")
                         .font(Lovio.Type_.caption)
                         .foregroundStyle(.secondary)
                     Spacer()

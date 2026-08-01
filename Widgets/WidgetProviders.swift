@@ -20,7 +20,10 @@ struct SnapshotProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SnapshotEntry) -> Void) {
-        completion(SnapshotEntry(date: .now, snapshot: AppGroup.loadSnapshot()))
+        // Sample data ONLY in the system widget gallery — on the real home
+        // screen, show the app-published snapshot or an honest empty state.
+        let snapshot = context.isPreview ? .placeholder : AppGroup.loadSnapshot()
+        completion(SnapshotEntry(date: .now, snapshot: snapshot))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
@@ -41,9 +44,7 @@ struct SendMissYouIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         WidgetOutbox.enqueue("miss_you")
-        var count = AppGroup.defaults.integer(forKey: "lovio.missyou.today")
-        count += 1
-        AppGroup.defaults.set(count, forKey: "lovio.missyou.today")
+        MissYouCounter.increment()
         return .result()
     }
 }
@@ -83,5 +84,8 @@ struct WidgetBackground: View {
 extension View {
     func lovioWidgetContainer(_ colors: [Color] = [Lovio.Palette.plum, Lovio.Palette.midnight]) -> some View {
         containerBackground(for: .widget) { WidgetBackground(colors: colors) }
+            // The app ships in English; keep relative countdowns ("in 11 days")
+            // in English too instead of following the device language.
+            .environment(\.locale, Locale(identifier: "en_US"))
     }
 }

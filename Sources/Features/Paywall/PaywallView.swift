@@ -90,10 +90,7 @@ struct PaywallView: View {
             Spacer(minLength: 8)
 
             VStack(spacing: 10) {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(Lovio.Palette.gold)
-                    .shadow(color: Lovio.Palette.gold.opacity(0.6), radius: 14)
+                MissuoLogoMark(size: 64, shadow: false)
 
                 Text(headline)
                     .font(Lovio.Type_.largeTitle)

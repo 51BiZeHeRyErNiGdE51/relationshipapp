@@ -108,13 +108,6 @@ Every meaningful action appends `RelationshipEvent(kind, actorID, occurredAt, me
 - **Ads**: AdMob banner on Home for free users only (test IDs — swap
   `GADApplicationIdentifier` in project.yml + `AdsManager.bannerUnitID`).
 
-## Age gate
-
-Date of birth (not a boolean) is stored locally and mirrored to the profile;
-age is recomputed every launch against `AppModel.minimumAge` (16). Underage
-users see a blocked screen with their eligibility date and are admitted
-automatically once old enough.
-
 ## Push notifications
 
 - **Local**: daily question reminder, event reminders (day-before + day-of),

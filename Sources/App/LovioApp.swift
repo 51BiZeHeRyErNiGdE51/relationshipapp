@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Configure before Meta / Analytics so nothing touches Firebase first.
+        _ = FirebaseBootstrap.configureIfPossible()
         UNUserNotificationCenter.current().delegate = self
         MetaBootstrap.configure(application: application, launchOptions: launchOptions)
         if FirebaseBootstrap.isConfigured {

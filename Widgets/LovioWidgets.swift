@@ -6,19 +6,32 @@ import WidgetKit
 struct LoveDaysWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "love_days", provider: SnapshotProvider()) { entry in
-            VStack(spacing: 4) {
-                Image(systemName: "heart.fill")
-                    .font(.title3)
-                    .foregroundStyle(Lovio.Palette.rose)
-                Text("\(entry.snapshot.daysTogether)")
-                    .font(.system(size: 40, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .contentTransition(.numericText())
-                Text("days of us")
-                    .font(.system(.caption, design: .rounded, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.75))
+            if entry.snapshot.hasAnniversary == true {
+                VStack(spacing: 4) {
+                    Image(systemName: "heart.fill")
+                        .font(.title3)
+                        .foregroundStyle(Lovio.Palette.rose)
+                    Text("\(entry.snapshot.daysTogether)")
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                    Text("days of us")
+                        .font(.system(.caption, design: .rounded, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                .lovioWidgetContainer()
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.title2)
+                        .foregroundStyle(Lovio.Palette.rose)
+                    Text("Set your anniversary in Missuo → Us")
+                        .font(.system(.caption, design: .rounded, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                }
+                .lovioWidgetContainer()
             }
-            .lovioWidgetContainer()
         }
         .configurationDisplayName("Love Days")
         .description("Days together, always in sight.")
@@ -26,24 +39,21 @@ struct LoveDaysWidget: Widget {
     }
 }
 
-// MARK: - Polaroid (user-sent photo + note)
+// MARK: - Polaroids
+//
+// Two separate widgets so the direction is never ambiguous:
+//   MyPolaroidWidget      → the photo YOU uploaded (your own home screen)
+//   PartnerPolaroidWidget → the photo your PARTNER sent you
 
-struct PolaroidWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "polaroid", provider: SnapshotProvider()) { entry in
-            polaroidBody(entry: entry)
-        }
-        .configurationDisplayName("Polaroid")
-        .description("A photo you two chose, right on the home screen.")
-        .supportedFamilies([.systemSmall, .systemLarge])
-    }
+private struct PolaroidBody: View {
+    let slot: WidgetContent.Slot
+    let emptyTitle: String
 
-    @ViewBuilder
-    private func polaroidBody(entry: SnapshotEntry) -> some View {
-        if let data = WidgetContent.loadPhoto(), let image = UIImage(data: data) {
+    var body: some View {
+        if let data = WidgetContent.loadPhoto(slot), let image = UIImage(data: data) {
             ZStack(alignment: .bottomLeading) {
                 Color.clear
-                if let note = entry.snapshot.latestNote, !note.isEmpty {
+                if let note = WidgetContent.note(slot), !note.isEmpty {
                     Text(note)
                         .font(.system(.caption, design: .rounded, weight: .semibold))
                         .foregroundStyle(.white)
@@ -64,7 +74,7 @@ struct PolaroidWidget: Widget {
                 Image(systemName: "photo.on.rectangle.angled")
                     .font(.title2)
                     .foregroundStyle(Lovio.Palette.peach)
-                Text("Send a photo from the Widgets tab in Missuo")
+                Text(emptyTitle)
                     .font(.system(.caption, design: .rounded, weight: .medium))
                     .foregroundStyle(.white.opacity(0.85))
                     .multilineTextAlignment(.center)
@@ -74,30 +84,69 @@ struct PolaroidWidget: Widget {
     }
 }
 
+/// The photo I chose — mirrors what my partner sees on their "From Your Love".
+struct MyPolaroidWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "polaroid_mine", provider: SnapshotProvider()) { _ in
+            PolaroidBody(slot: .mine,
+                         emptyTitle: "Choose a photo in Missuo → Widgets")
+        }
+        .configurationDisplayName("My Polaroid")
+        .description("The photo you picked — the same one your partner sees.")
+        .supportedFamilies([.systemSmall, .systemLarge])
+    }
+}
+
+/// The photo my partner sent me.
+struct PartnerPolaroidWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "polaroid_partner", provider: SnapshotProvider()) { _ in
+            PolaroidBody(slot: .partner,
+                         emptyTitle: "Photos your partner sends land here 💌")
+        }
+        .configurationDisplayName("From Your Love")
+        .description("The photo and note your partner sent you.")
+        .supportedFamilies([.systemSmall, .systemLarge])
+    }
+}
+
 // MARK: - Love Pulse (heartbeat when both online)
 
 struct LovePulseWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "love_pulse", provider: SnapshotProvider()) { entry in
-            VStack(spacing: 8) {
-                Image(systemName: entry.snapshot.bothRecentlyActive
-                      ? "waveform.path.ecg" : "heart.slash")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(entry.snapshot.bothRecentlyActive
-                                     ? Lovio.Palette.rose : .white.opacity(0.4))
-                    .symbolEffect(.pulse, options: .repeating,
-                                  isActive: entry.snapshot.bothRecentlyActive)
-                Text(entry.snapshot.bothRecentlyActive
-                     ? "You're both here 💗" : "Waiting for \(entry.snapshot.partnerName)…")
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                HStack(spacing: 4) {
-                    initialDot(entry.snapshot.myInitials, active: true)
-                    initialDot(entry.snapshot.partnerInitials, active: entry.snapshot.bothRecentlyActive)
+            if entry.snapshot.isPaired == true {
+                VStack(spacing: 8) {
+                    Image(systemName: entry.snapshot.bothRecentlyActive
+                          ? "waveform.path.ecg" : "heart.slash")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(entry.snapshot.bothRecentlyActive
+                                         ? Lovio.Palette.rose : .white.opacity(0.4))
+                        .symbolEffect(.pulse, options: .repeating,
+                                      isActive: entry.snapshot.bothRecentlyActive)
+                    Text(entry.snapshot.bothRecentlyActive
+                         ? "You're both here 💗" : "Waiting for \(entry.snapshot.partnerName)…")
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                    HStack(spacing: 4) {
+                        initialDot(entry.snapshot.myInitials, active: true)
+                        initialDot(entry.snapshot.partnerInitials, active: entry.snapshot.bothRecentlyActive)
+                    }
                 }
+                .lovioWidgetContainer([Lovio.Palette.rose.opacity(0.85), Lovio.Palette.plum])
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "person.2.badge.plus.fill")
+                        .font(.title2)
+                        .foregroundStyle(Lovio.Palette.rose)
+                    Text("Pair with your partner in Missuo first")
+                        .font(.system(.caption, design: .rounded, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                }
+                .lovioWidgetContainer()
             }
-            .lovioWidgetContainer([Lovio.Palette.rose.opacity(0.85), Lovio.Palette.plum])
         }
         .configurationDisplayName("Love Pulse")
         .description("An animated heartbeat when you're both online.")
@@ -228,7 +277,8 @@ struct NextAdventureWidget: Widget {
 
 struct MissYouWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "miss_you", provider: SnapshotProvider()) { entry in
+        StaticConfiguration(kind: "miss_you", provider: SnapshotProvider()) { _ in
+            let sentToday = MissYouCounter.today()
             VStack(spacing: 10) {
                 Button(intent: SendMissYouIntent()) {
                     VStack(spacing: 6) {
@@ -241,7 +291,7 @@ struct MissYouWidget: Widget {
                     }
                 }
                 .buttonStyle(.plain)
-                Text("\(entry.snapshot.missYouCountToday) sent today")
+                Text(sentToday == 0 ? "Tap to send one" : "\(sentToday) sent today")
                     .font(.system(.caption2, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
             }
@@ -258,6 +308,7 @@ struct MissYouWidget: Widget {
 struct SecretMessageWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "secret_message", provider: SnapshotProvider()) { entry in
+            let partnerNote = WidgetContent.note(.partner)
             let revealed = AppGroup.defaults.bool(forKey: "lovio.secret.revealed")
             Button(intent: RevealSecretIntent()) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -265,12 +316,12 @@ struct SecretMessageWidget: Widget {
                           systemImage: revealed ? "envelope.open.fill" : "envelope.fill")
                         .font(.system(.caption2, design: .rounded, weight: .bold))
                         .foregroundStyle(Lovio.Palette.gold)
-                    Text(entry.snapshot.latestNote ?? "No note yet — send one from Missuo")
+                    Text(partnerNote ?? "Notes your partner sends appear here")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.white)
-                        .blur(radius: revealed ? 0 : 7)
+                        .blur(radius: (revealed || partnerNote == nil) ? 0 : 7)
                         .lineLimit(3)
-                    if !revealed {
+                    if !revealed, partnerNote != nil {
                         Text("Tap to reveal")
                             .font(.system(.caption2, design: .rounded))
                             .foregroundStyle(.white.opacity(0.6))

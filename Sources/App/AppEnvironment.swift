@@ -115,41 +115,21 @@ final class AppModel {
             UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
         }
 
-        // Age gate re-check: DOB is stored, age is computed live — someone who
-        // was 15 at signup is let in automatically the day they turn 16.
-        if let dob = Self.storedBirthday, Self.age(from: dob) < Self.minimumAge {
-            phase = .onboarding
-            return
-        }
-
-        guard UserDefaults.standard.bool(forKey: Self.onboardingCompletedKey) else {
-            services.analytics.track(.onboardingStarted)
-            phase = .onboarding
-            return
+        if !UserDefaults.standard.bool(forKey: Self.onboardingCompletedKey) {
+            // Returning user (reinstall, cleared defaults, opened via widget):
+            // Firebase Auth survives in the keychain, so don't replay the
+            // tutorial — restore their session directly.
+            if !isDemoMode, await services.auth.currentUser() != nil {
+                UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
+            } else {
+                services.analytics.track(.onboardingStarted)
+                phase = .onboarding
+                return
+            }
         }
         await ensureSession()
         await drainWidgetOutbox()
         NotificationManager.shared.scheduleWeeklyPremiumNudge(isPremium: premium.isPremium)
-    }
-
-    // MARK: Age gate (16+, computed from date of birth — never a stored boolean)
-
-    static let minimumAge = 16
-    private static let birthdayKey = "lovio.dateOfBirth"
-
-    static var storedBirthday: Date? {
-        UserDefaults.standard.object(forKey: birthdayKey) as? Date
-    }
-
-    static func age(from dob: Date) -> Int {
-        Calendar.current.dateComponents([.year], from: dob, to: .now).year ?? 0
-    }
-
-    /// Stores DOB and reports whether the user currently meets the minimum age.
-    @discardableResult
-    func submitBirthday(_ dob: Date) -> Bool {
-        UserDefaults.standard.set(dob, forKey: Self.birthdayKey)
-        return Self.age(from: dob) >= Self.minimumAge
     }
 
     // MARK: Secondary offer window (7 days from first paywall decline)
@@ -196,14 +176,13 @@ final class AppModel {
             var profile = try await services.relationship.profile(for: user.id)
                 ?? UserProfile(id: user.id, displayName: user.displayName)
             profile.lastActiveAt = .now
-            profile.birthday = Self.storedBirthday ?? profile.birthday
             // Register this device for partner-event pushes (Cloud Functions
             // read users/{id}.fcmTokens to fan out notifications).
             if let token = UserDefaults.standard.string(forKey: "lovio.fcm.token"),
                !profile.fcmTokens.contains(token) {
                 profile.fcmTokens.append(token)
             }
-            try? await services.relationship.updateProfile(profile)
+            try await services.relationship.updateProfile(profile)
             myProfile = profile
 
             var rel = try await services.relationship.currentRelationship(for: user.id)
@@ -226,8 +205,19 @@ final class AppModel {
             phase = .active
             await refreshToday()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.userFacingMessage(for: error)
         }
+    }
+
+    private static func userFacingMessage(for error: Error) -> String {
+        let text = error.localizedDescription
+        if text.localizedCaseInsensitiveContains("missing or insufficient permissions")
+            || text.localizedCaseInsensitiveContains("permission denied") {
+            return """
+            Firestore blocked the app. In Firebase Console → Firestore → Rules, paste the contents of firebase/firestore.rules from this project and tap Publish. Under Authentication → Sign-in method, enable Anonymous.
+            """
+        }
+        return text
     }
 
     /// Called by the onboarding flow. Solo usage is fully supported —
@@ -353,6 +343,8 @@ final class AppModel {
 
     func sendMissYou(source: String = "app") async {
         services.analytics.track(.missYouSent(source: source))
+        // Widget taps already incremented the counter in their intent.
+        if source != "widget" { MissYouCounter.increment() }
         Haptics.heartbeat()
         await recordEngagement(.missYouSent, nurture: 2)
         // Production: Cloud Function fans this out via FCM to the partner
@@ -440,10 +432,10 @@ final class AppModel {
 
     // MARK: Widgets — shared content (photo + note reach BOTH partners)
 
-    /// Publishes a love note to my widgets AND my partner's (via Firestore;
-    /// a Cloud Function pushes "new note on your widget" to their phone).
+    /// Publishes a love note to my own widgets (mine slot) AND to my partner
+    /// (via Firestore; a Cloud Function pushes "new note on your widget").
     func sendWidgetNote(_ text: String) async {
-        WidgetContent.saveNote(text)
+        WidgetContent.saveNote(text, slot: .mine)
         publishWidgetSnapshot()
         guard let rel = relationship, let me = user else { return }
         var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
@@ -455,10 +447,11 @@ final class AppModel {
             event: RelationshipEvent(kind: .widgetNoteSent, actorID: me.id), relationship: rel.id)
     }
 
-    /// Publishes a photo to both partners' Polaroid widgets. Photos are
-    /// visible ONLY to the two members (enforced by Storage rules).
+    /// Saves the photo to MY "My Polaroid" widget instantly, then uploads it so
+    /// it lands on my partner's "From Your Love" widget. Photos are visible
+    /// ONLY to the two members (enforced by Storage rules).
     func sendWidgetPhoto(_ jpeg: Data) async {
-        WidgetContent.savePhoto(jpeg)
+        WidgetContent.savePhoto(jpeg, slot: .mine)
         guard let rel = relationship, let me = user else { return }
         guard let path = try? await services.relationship.uploadImage(
             jpeg, relationship: rel.id, fileName: "widget_photo.jpg") else { return }
@@ -482,7 +475,7 @@ final class AppModel {
         if let note = content.note, content.noteAuthorID != me.id,
            let at = content.noteUpdatedAt,
            at > (defaults.object(forKey: "lovio.widget.note.syncedAt") as? Date ?? .distantPast) {
-            WidgetContent.saveNote(note)
+            WidgetContent.saveNote(note, slot: .partner)
             defaults.set(at, forKey: "lovio.widget.note.syncedAt")
             publishWidgetSnapshot()
         }
@@ -491,14 +484,16 @@ final class AppModel {
            let at = content.photoUpdatedAt,
            at > (defaults.object(forKey: "lovio.widget.photo.syncedAt") as? Date ?? .distantPast),
            let data = try? await services.relationship.downloadImage(path: path) {
-            WidgetContent.savePhoto(data)
+            WidgetContent.savePhoto(data, slot: .partner)
             defaults.set(at, forKey: "lovio.widget.photo.syncedAt")
         }
     }
 
     // MARK: Widgets
 
-    /// Denormalize everything widgets need into the App Group and reload timelines.
+    /// Denormalize everything widgets need into the App Group and reload
+    /// timelines. Only real data — anything we don't track yet is nil so
+    /// widgets show honest empty states instead of demo numbers.
     func publishWidgetSnapshot() {
         guard let rel = relationship, let user else { return }
         let partnerID = rel.partnerID(of: user.id)
@@ -506,7 +501,12 @@ final class AppModel {
         let partnerMood = partnerID.flatMap { latestMoods[$0] }
         let nextDate = upcomingDates.first
 
-        let snapshot = WidgetSnapshot(
+        // "Both online" = paired and the partner was active in the last 15 min.
+        let partnerRecentlyActive = (partnerProfile?.lastActiveAt).map {
+            Date.now.timeIntervalSince($0) < 15 * 60
+        } ?? false
+
+        var snapshot = WidgetSnapshot(
             myName: myName, partnerName: partnerName,
             myInitials: myProfile?.initials ?? "Y",
             partnerInitials: partnerProfile?.initials ?? "L",
@@ -518,21 +518,23 @@ final class AppModel {
             questionAnsweredByMe: questionState?.myAnswer != nil,
             questionAnsweredByPartner: questionState?.partnerHasAnswered ?? false,
             myMood: myMood?.mood.emoji, partnerMood: partnerMood?.mood.emoji,
-            myEnergy: myMood?.energy ?? 3, partnerEnergy: partnerMood?.energy ?? 3,
-            partnerBatteryPercent: 72,           // production: partner presence doc
-            distanceKilometers: 4.2,             // production: coarse location sync
-            daysSinceLastMeeting: 2,
-            bothRecentlyActive: true,
-            nextEventTitle: nextDate?.title, 
+            myEnergy: myMood?.energy ?? 0, partnerEnergy: partnerMood?.energy ?? 0,
+            partnerBatteryPercent: nil,      // future: partner presence doc
+            distanceKilometers: nil,         // future: coarse location sync
+            daysSinceLastMeeting: nil,       // future: meetup log
+            bothRecentlyActive: isPaired && partnerRecentlyActive,
+            nextEventTitle: nextDate?.title,
             nextEventDate: nextDate.map { Calendar.current.date(byAdding: .day, value: $0.daysUntil, to: .now) ?? $0.date },
-            latestNote: WidgetContent.note,
-            missYouCountToday: 3,
-            heartsInJar: 100 + rel.xp / 25,
+            latestNote: WidgetContent.note(.partner),
+            missYouCountToday: MissYouCounter.today(),
+            heartsInJar: rel.xp / 4,
             companionKind: rel.companion.kind.rawValue,
             companionStageName: rel.companion.stageName,
             companionGrowth: rel.companion.growth,
-            lastMemoryTitle: "Sunset picnic at the pier",
-            lastMemoryDate: .now.addingTimeInterval(-86_400 * 3))
+            lastMemoryTitle: nil,
+            lastMemoryDate: nil)
+        snapshot.hasAnniversary = rel.anniversary != nil
+        snapshot.isPaired = isPaired
         AppGroup.save(snapshot)
     }
 

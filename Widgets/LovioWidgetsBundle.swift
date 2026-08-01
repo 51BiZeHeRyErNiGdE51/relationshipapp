@@ -5,7 +5,8 @@ import WidgetKit
 struct LovioWidgetsBundle: WidgetBundle {
     var body: some Widget {
         LoveDaysWidget()
-        PolaroidWidget()
+        MyPolaroidWidget()
+        PartnerPolaroidWidget()
         LovePulseWidget()
         OpenQuestionWidget()
         MoodSyncWidget()

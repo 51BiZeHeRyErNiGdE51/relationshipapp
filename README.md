@@ -15,12 +15,13 @@ open Lovio.xcodeproj           # build & run the "Lovio" scheme
 ### Going live
 
 1. Add your Firebase `GoogleService-Info.plist` to `Sources/App/` (gitignored) and add it to the Lovio target — Auth, Firestore, Storage, Messaging, GA4 and Remote Config light up automatically.
-2. Set `REVENUECAT_API_KEY` (scheme environment variable, or hardcode in `RevenueCatBootstrap`) with a `premium` entitlement, monthly/yearly packages in the default offering, and a discounted package in an offering with identifier `secondary` (powers the 7-day decline offer).
-3. Update bundle IDs / App Group (`group.com.bsekapps.lovio`) / signing team to your own.
-4. Deploy push notification functions: `cd firebase/functions && npm install`, then `firebase deploy --only functions` (Blaze plan + APNs key in Firebase → Cloud Messaging required).
-5. AI coach (DeepSeek, server-side only — never put the API key in the app or this repo):
+2. **Publish Firestore rules** (fixes “Missing or insufficient permissions” on device): Firebase Console → Firestore → Rules → paste `firebase/firestore.rules` → Publish. Or `firebase login --reauth` then `firebase deploy --only firestore:rules,storage --project lovio-18416`. Enable **Anonymous** under Authentication → Sign-in method.
+3. Set `REVENUECAT_API_KEY` (scheme environment variable, or hardcode in `RevenueCatBootstrap`) with a `premium` entitlement, monthly/yearly packages in the default offering, and a discounted package in an offering with identifier `secondary` (powers the 7-day decline offer).
+4. Update bundle IDs / App Group (`group.com.bsekapps.lovio`) / signing team to your own.
+5. Deploy push notification functions: `cd firebase/functions && npm install`, then `firebase deploy --only functions` (Blaze plan + APNs key in Firebase → Cloud Messaging required).
+6. AI coach (DeepSeek, server-side only — never put the API key in the app or this repo):
    `firebase functions:secrets:set DEEPSEEK_API_KEY` (paste the key when prompted), then redeploy functions. The `askCoach` callable builds couple context (rated answers, moods) from Firestore and the client falls back to demo replies until it's deployed.
-6. Replace AdMob test IDs: `GADApplicationIdentifier` in `project.yml` and `AdsManager.bannerUnitID`.
+7. Replace AdMob test IDs: `GADApplicationIdentifier` in `project.yml` and `AdsManager.bannerUnitID`.
 
 ## Product pillars
 
