@@ -101,19 +101,25 @@ struct MainTabView: View {
         }
     }
 
-    /// Soft paywall exposure for free users — at most once per day, and only
-    /// after the permission prompts are done so dialogs never pile up.
+    /// Soft paywall exposure for free users. Respectful cadence:
+    /// they already saw the paywall in onboarding and (if declined) get the
+    /// 7-day offer chip + reminder pushes — so we never auto-open the paywall
+    /// while that offer window runs, and at most once a week afterwards.
+    /// Locked features remain the natural upsell in between.
     private func maybeShowSessionPaywall() {
         if UserDefaults.standard.bool(forKey: "lovio.paywall.skipSessionStartOnce") {
             UserDefaults.standard.set(false, forKey: "lovio.paywall.skipSessionStartOnce")
             return
         }
-        let key = "lovio.paywall.lastShownDay"
-        let today = DayKey.today()
-        if !model.premium.isPremium, UserDefaults.standard.string(forKey: key) != today {
-            UserDefaults.standard.set(today, forKey: key)
-            showPaywall = true
-        }
+        guard !model.premium.isPremium else { return }
+        // Offer window running → the Home chip is already selling; stay quiet.
+        if model.secondaryOfferDeadline != nil, model.isSecondaryOfferActive { return }
+
+        let key = "missuo.paywall.lastAutoShownAt"
+        let last = UserDefaults.standard.object(forKey: key) as? Date ?? .distantPast
+        guard Date.now.timeIntervalSince(last) >= 7 * 86_400 else { return }
+        UserDefaults.standard.set(Date(), forKey: key)
+        showPaywall = true
     }
 
     /// Wraps a tab's root view so free users get a sticky ad banner pinned

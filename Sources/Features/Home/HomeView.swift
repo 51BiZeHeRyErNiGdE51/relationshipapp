@@ -31,7 +31,9 @@ struct HomeView: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
-        .navigationTitle("Today")
+        // No big "Today" title or date banner — the greeting header carries
+        // the context; the nav bar only hosts the Miss You button.
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 missYouButton
@@ -227,13 +229,8 @@ struct HomeView: View {
     private var header: some View {
         HStack(spacing: 14) {
             MissuoLogoMark(size: 40, shadow: false)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting)
-                    .font(Lovio.Type_.headline)
-                Text(Date.now.formatted(date: .complete, time: .omitted))
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(greeting)
+                .font(Lovio.Type_.headline)
             Spacer()
             if model.premium.isPremium {
                 Label("Premium", systemImage: "crown.fill")

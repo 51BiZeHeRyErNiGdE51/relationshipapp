@@ -124,13 +124,17 @@ struct WidgetGalleryView: View {
             model.services.analytics.track(.widgetGalleryViewed)
             model.publishWidgetSnapshot()
         }
-        .task { await loadEvents() }
+        .task {
+            await model.syncIncomingWidgetContent()
+            await loadEvents()
+        }
         .refreshable {
             await model.syncIncomingWidgetContent()
             await loadEvents()
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
+            photoSaved = false
             Task {
                 guard let data = try? await item.loadTransferable(type: Data.self),
                       let image = UIImage(data: data) else {
@@ -226,43 +230,71 @@ struct WidgetGalleryView: View {
     private var sendPhotoCard: some View {
         GlassCard(tint: Lovio.Palette.peach) {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Photo on your home screen", systemImage: "photo.on.rectangle.angled")
+                Label("Your Polaroid photo", systemImage: "photo.on.rectangle.angled")
                     .font(Lovio.Type_.headline)
                     .foregroundStyle(Lovio.Palette.peach)
+
+                // One photo, two home screens — spelled out so the direction
+                // is never a mystery.
+                Text(model.isPaired
+                     ? "One photo, two home screens: your \"My Polaroid\" widget and \(model.partnerFirstName ?? "your partner")'s \"From Your Love\" widget."
+                     : "Shows on your \"My Polaroid\" widget now — and lands on your partner's \"From Your Love\" widget the moment you pair.")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 14) {
                     if let data = WidgetContent.loadPhoto(.mine), let image = UIImage(data: data) {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .frame(width: 84, height: 84)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                     } else {
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: 16)
                             .fill(.ultraThinMaterial)
-                            .frame(width: 64, height: 64)
+                            .frame(width: 84, height: 84)
                             .overlay {
-                                Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                VStack(spacing: 4) {
+                                    Image(systemName: "photo")
+                                    Text("No photo")
+                                        .font(.system(size: 10))
+                                }
+                                .foregroundStyle(.secondary)
                             }
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(photoSaved
-                             ? "Done! It's on your My Polaroid widget\(model.isPaired ? ", and lands on \(model.partnerFirstName ?? "your partner")'s From Your Love widget" : "")."
-                             : model.isPaired
-                               ? "Shows on YOUR \"My Polaroid\" widget and on \(model.partnerFirstName ?? "your partner")'s \"From Your Love\" widget. Only you two can see it."
-                               : "Shows on your \"My Polaroid\" widget now — and on your partner's \"From Your Love\" widget once you pair.")
-                            .font(Lovio.Type_.caption)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        if photoSaved {
+                            Label(model.isPaired
+                                  ? "Added ✓ — sent to \(model.partnerFirstName ?? "your partner") too"
+                                  : "Added ✓ — it's on your widget",
+                                  systemImage: "checkmark.circle.fill")
+                                .font(Lovio.Type_.caption.weight(.semibold))
+                                .foregroundStyle(.green)
+                        }
 
-                        PhotosPicker(selection: $photoItem, matching: .images) {
-                            Label(WidgetContent.hasPhoto(.mine) ? "Change photo" : "Choose photo",
-                                  systemImage: "photo.badge.plus")
-                                .font(Lovio.Type_.caption)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Capsule().fill(.ultraThinMaterial))
+                        HStack(spacing: 8) {
+                            PhotosPicker(selection: $photoItem, matching: .images) {
+                                Label(WidgetContent.hasPhoto(.mine) ? "Change" : "Choose photo",
+                                      systemImage: "photo.badge.plus")
+                                    .font(Lovio.Type_.caption)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(.ultraThinMaterial))
+                            }
+                            if WidgetContent.hasPhoto(.mine) {
+                                Button(role: .destructive) {
+                                    WidgetContent.removePhoto(.mine)
+                                    withAnimation(.smooth) { photoSaved = false }
+                                    Haptics.light()
+                                } label: {
+                                    Label("Remove", systemImage: "trash")
+                                        .font(Lovio.Type_.caption)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(Capsule().fill(.ultraThinMaterial))
+                                }
+                            }
                         }
                     }
                     Spacer()
@@ -492,10 +524,8 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("Profile") {
-                LabeledContent("Name", value: model.myName)
-                LabeledContent("Partner", value: model.partnerName)
-                if let code = model.relationship?.inviteCode?.display {
+            if let code = model.relationship?.inviteCode?.display {
+                Section("Your couple") {
                     LabeledContent("Invite code", value: code)
                 }
             }

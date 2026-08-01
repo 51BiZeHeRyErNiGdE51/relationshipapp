@@ -207,6 +207,14 @@ public enum WidgetContent {
         photoURL(slot).flatMap { try? Data(contentsOf: $0) }
     }
 
+    public static func removePhoto(_ slot: Slot) {
+        if let url = photoURL(slot) {
+            try? FileManager.default.removeItem(at: url)
+        }
+        AppGroup.defaults.removeObject(forKey: "lovio.widget.photo.\(slot.rawValue).updatedAt")
+        reloadTimelines()
+    }
+
     public static func hasPhoto(_ slot: Slot) -> Bool {
         photoURL(slot).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
