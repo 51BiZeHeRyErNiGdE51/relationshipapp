@@ -25,7 +25,7 @@ struct Services: Sendable {
                  mood: FirestoreMoodService(),
                  planner: FirestorePlannerService(),
                  premium: RevenueCatPremiumService(),
-                 aiCoach: DemoAICoachService(),   // swap for server AI endpoint
+                 aiCoach: CloudAICoachService(),  // DeepSeek via Cloud Functions — key stays server-side
                  analytics: CompositeAnalytics(sinks: [FirebaseAnalyticsClient(),
                                                        MetaAnalyticsAdapter(),
                                                        ConsoleAnalytics()]),
@@ -310,11 +310,11 @@ final class AppModel {
 
     // MARK: Actions (each one feeds the relationship graph + gamification)
 
-    func answerTodayQuestion(_ text: String) async {
+    func answerTodayQuestion(_ text: String, rating: Int? = nil) async {
         guard let rel = relationship, let user, let state = questionState else { return }
         do {
             questionState = try await services.questions.submitAnswer(
-                text, question: state.question, relationship: rel.id, author: user.id)
+                text, rating: rating, question: state.question, relationship: rel.id, author: user.id)
             services.analytics.track(.questionAnswered(category: state.question.category.rawValue))
             if questionState?.isRevealed == true {
                 services.analytics.track(.answersRevealed)

@@ -48,20 +48,20 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            NavigationStack { HomeView() }
+            withStickyBanner { HomeView() }
                 .tabItem { Label("Today", systemImage: "heart.fill") }
 
             // Widgets are the flagship engagement surface — first-class tab.
-            NavigationStack { WidgetGalleryView() }
+            withStickyBanner { WidgetGalleryView() }
                 .tabItem { Label("Widgets", systemImage: "square.grid.2x2.fill") }
 
-            NavigationStack { MemoriesView() }
+            withStickyBanner { MemoriesView() }
                 .tabItem { Label("Memories", systemImage: "book.closed.fill") }
 
-            NavigationStack { PlayView() }
+            withStickyBanner { PlayView() }
                 .tabItem { Label("Play", systemImage: "gamecontroller.fill") }
 
-            NavigationStack { UsView() }
+            withStickyBanner { UsView() }
                 .tabItem { Label("Us", systemImage: "person.2.fill") }
         }
         .tint(Lovio.Palette.rose)
@@ -84,5 +84,16 @@ struct MainTabView: View {
                 await model.refreshToday()
             }
         }
+    }
+
+    /// Wraps a tab's root view so free users get a sticky ad banner pinned
+    /// directly above the tab bar — content scrolls behind, banner stays put.
+    private func withStickyBanner<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        NavigationStack { content() }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !model.premium.isPremium {
+                    StickyAdBanner()
+                }
+            }
     }
 }

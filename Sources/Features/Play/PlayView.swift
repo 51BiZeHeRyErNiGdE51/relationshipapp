@@ -243,9 +243,9 @@ struct AICoachView: View {
                         .font(Lovio.Type_.title)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Honesty until the real model is wired (planned: server-side
-                    // LLM proxy via Cloud Functions — provider TBD).
-                    Label("Coach preview — example responses until the AI service launches", systemImage: "info.circle")
+                    // Live DeepSeek coach via Cloud Functions once `askCoach`
+                    // is deployed; falls back to example replies until then.
+                    Label("The coach knows your daily-question answers and moods — ask anything about you two", systemImage: "sparkles")
                         .font(Lovio.Type_.caption)
                         .foregroundStyle(.tertiary)
 

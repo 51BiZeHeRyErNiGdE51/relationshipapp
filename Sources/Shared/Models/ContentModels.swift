@@ -29,6 +29,18 @@ public enum QuestionCategory: String, Codable, CaseIterable, Sendable {
     public var isOptIn: Bool { self == .spicy }
 }
 
+/// How a daily question is answered. Rated statements work much better for
+/// long-distance couples: three-second answers from anywhere, and the ratings
+/// are comparable — which powers the couple's alignment score and AI context.
+public enum QuestionKind: String, Codable, Sendable {
+    /// Agree / disagree statement — "Pineapple belongs on pizza."
+    case thumbs
+    /// Rate the statement 1–5 — "I'd move abroad if you asked me to."
+    case scale
+    /// Classic free-text question, kept in the mix for depth.
+    case open
+}
+
 public struct DailyQuestion: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var text: String
@@ -36,14 +48,20 @@ public struct DailyQuestion: Codable, Identifiable, Hashable, Sendable {
     /// yyyy-MM-dd in the couple's shared timezone — the "question day" key.
     public var dayKey: String
     public var isPremium: Bool
+    /// Optional for backward-compat with previously stored data; use `format`.
+    public var kind: QuestionKind?
+
+    public var format: QuestionKind { kind ?? .open }
 
     public init(id: String = UUID().uuidString, text: String,
-                category: QuestionCategory, dayKey: String, isPremium: Bool = false) {
+                category: QuestionCategory, dayKey: String, isPremium: Bool = false,
+                kind: QuestionKind? = nil) {
         self.id = id
         self.text = text
         self.category = category
         self.dayKey = dayKey
         self.isPremium = isPremium
+        self.kind = kind
     }
 }
 
@@ -54,14 +72,23 @@ public struct QuestionAnswer: Codable, Identifiable, Hashable, Sendable {
     public var authorID: UserID
     public var text: String
     public var answeredAt: Date
+    /// Numeric response for rated questions: thumbs → 1 (agree) / 0 (disagree),
+    /// scale → 1…5. Nil for free-text answers.
+    public var rating: Int?
+    /// Denormalized question text so server-side AI can build context without
+    /// shipping the question bank to the backend.
+    public var questionText: String?
 
     public init(id: String = UUID().uuidString, questionID: String,
-                authorID: UserID, text: String, answeredAt: Date = .now) {
+                authorID: UserID, text: String, answeredAt: Date = .now,
+                rating: Int? = nil, questionText: String? = nil) {
         self.id = id
         self.questionID = questionID
         self.authorID = authorID
         self.text = text
         self.answeredAt = answeredAt
+        self.rating = rating
+        self.questionText = questionText
     }
 }
 
@@ -81,6 +108,40 @@ public struct DailyQuestionState: Sendable {
     }
 
     public var isRevealed: Bool { !revealedAnswers.isEmpty }
+}
+
+/// Turns the couple's rated answers into a 0–100 alignment score — shown in
+/// the question archive and fed into the AI coach's context.
+public enum QuestionAlignment {
+    /// Match percent for a single revealed question, if both sides rated it.
+    public static func matchPercent(_ state: DailyQuestionState) -> Int? {
+        guard state.revealedAnswers.count == 2,
+              let a = state.revealedAnswers[0].rating,
+              let b = state.revealedAnswers[1].rating else { return nil }
+        switch state.question.format {
+        case .thumbs: return a == b ? 100 : 0
+        case .scale:  return max(0, 100 - abs(a - b) * 25)
+        case .open:   return nil
+        }
+    }
+
+    /// Average alignment across revealed history. Nil until there's at least
+    /// one rated question both partners answered.
+    public static func overall(_ history: [DailyQuestionState]) -> (percent: Int, count: Int)? {
+        let scores = history.compactMap(matchPercent)
+        guard !scores.isEmpty else { return nil }
+        return (scores.reduce(0, +) / scores.count, scores.count)
+    }
+
+    public static func verdict(forMatch percent: Int) -> String {
+        switch percent {
+        case 100:     "Perfectly in sync 💞"
+        case 75...:   "Almost identical 🥰"
+        case 50...:   "Close enough 😊"
+        case 25...:   "Interesting gap 👀"
+        default:      "Opposites attract 😅"
+        }
+    }
 }
 
 // MARK: - Journal

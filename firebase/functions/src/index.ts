@@ -13,6 +13,8 @@
 
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
@@ -106,6 +108,139 @@ export const onEventCreated = onDocumentCreated(
         break;
     }
   });
+
+// ---------------------------------------------------------------------------
+// AI Coach — DeepSeek, strictly server-side.
+//
+// The API key lives in a Cloud Functions secret, never in the app binary:
+//   firebase functions:secrets:set DEEPSEEK_API_KEY --project lovio-18416
+//   (paste the key when prompted, then redeploy functions)
+//
+// The function reads the couple's recent rated answers and moods from
+// Firestore itself, so the model sees real alignment data without the client
+// shipping anything sensitive.
+// ---------------------------------------------------------------------------
+
+const deepseekKey = defineSecret("DEEPSEEK_API_KEY");
+
+interface AnswerDoc {
+  authorID: string;
+  questionID: string;
+  questionText?: string;
+  text: string;
+  rating?: number;
+}
+
+/** Compact context block the model can reason over. */
+async function coachContext(relID: string, callerID: string): Promise<string> {
+  const rel = await db.collection("relationships").doc(relID).get();
+  const relData = rel.data() ?? {};
+
+  const answersSnap = await db
+    .collection("relationships").doc(relID)
+    .collection("answers")
+    .orderBy("answeredAt", "desc")
+    .limit(40)
+    .get();
+  const answers = answersSnap.docs.map((d) => d.data() as AnswerDoc);
+
+  // Group by question; keep only ones both partners answered.
+  const byQuestion = new Map<string, AnswerDoc[]>();
+  for (const a of answers) {
+    byQuestion.set(a.questionID, [...(byQuestion.get(a.questionID) ?? []), a]);
+  }
+  const lines: string[] = [];
+  for (const [, pair] of byQuestion) {
+    if (pair.length < 2 || !pair[0].questionText) continue;
+    const mine = pair.find((a) => a.authorID === callerID);
+    const theirs = pair.find((a) => a.authorID !== callerID);
+    if (!mine || !theirs) continue;
+    lines.push(`- "${pair[0].questionText}" — user: ${mine.text}, partner: ${theirs.text}`);
+    if (lines.length >= 15) break;
+  }
+
+  const moodsSnap = await db
+    .collection("relationships").doc(relID)
+    .collection("moods")
+    .orderBy("loggedAt", "desc")
+    .limit(10)
+    .get();
+  const moods = moodsSnap.docs
+    .map((d) => d.data())
+    .map((m) => `${m.authorID === callerID ? "user" : "partner"}: ${m.mood}`)
+    .join(", ");
+
+  return [
+    relData.anniversary ? `Anniversary: ${relData.anniversary.toDate?.().toISOString?.().slice(0, 10)}` : "",
+    lines.length ? `Recent daily-question answers (both partners):\n${lines.join("\n")}` : "",
+    moods ? `Recent moods: ${moods}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+const SYSTEM_PROMPTS: Record<string, string> = {
+  chat:
+    "You are Missuo's warm, practical relationship coach for couples — many in " +
+    "long-distance relationships. Use the provided context about the couple's " +
+    "question answers (their agreements and disagreements matter) and moods. " +
+    "Be specific to them, kind but honest, never clinical. Keep replies under " +
+    "120 words unless asked for detail. Never mention the context block itself.",
+  dateIdeas:
+    "You suggest date ideas for couples, including virtual dates for " +
+    "long-distance couples. Use the couple's context to personalize. Reply " +
+    "with exactly 5 ideas, one per line, no numbering, each under 12 words.",
+};
+
+export const askCoach = onCall({ secrets: [deepseekKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+  const { mode, message, relationshipID } = request.data as {
+    mode?: string; message?: string; relationshipID?: string;
+  };
+  if (!relationshipID || typeof relationshipID !== "string") {
+    throw new HttpsError("invalid-argument", "relationshipID required.");
+  }
+
+  // Only members of the relationship may ask about it.
+  const rel = await db.collection("relationships").doc(relationshipID).get();
+  const members = (rel.data()?.memberIDs as string[] | undefined) ?? [];
+  if (!members.includes(request.auth.uid)) {
+    throw new HttpsError("permission-denied", "Not a member of this relationship.");
+  }
+
+  const system = SYSTEM_PROMPTS[mode ?? "chat"] ?? SYSTEM_PROMPTS.chat;
+  const context = await coachContext(relationshipID, request.auth.uid);
+
+  const response = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${deepseekKey.value()}`,
+    },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      max_tokens: 400,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `Couple context:\n${context || "(new couple, no data yet)"}` },
+        { role: "user", content: message ?? "Give me one helpful insight about us." },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    console.error("DeepSeek error", response.status, detail);
+    throw new HttpsError("unavailable", "AI is temporarily unavailable.");
+  }
+
+  const json = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const reply = json.choices?.[0]?.message?.content?.trim();
+  if (!reply) throw new HttpsError("internal", "Empty AI response.");
+  return { reply };
+});
 
 /** Daily 09:00 UTC sweep: remind both partners of dates happening tomorrow. */
 export const dailyDateReminders = onSchedule("every day 09:00", async () => {

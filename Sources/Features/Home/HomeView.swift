@@ -25,9 +25,6 @@ struct HomeView: View {
                 nextEventCard
                 aiTeaserCard
                 offerChip
-                if !model.premium.isPremium {
-                    AdBannerCard()
-                }
             }
             .padding(.horizontal, Lovio.Metrics.screenPadding)
             .padding(.bottom, 32)

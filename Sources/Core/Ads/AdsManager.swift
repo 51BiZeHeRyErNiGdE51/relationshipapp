@@ -32,7 +32,7 @@ enum AdsManager {
 struct BannerAdView: UIViewRepresentable {
     func makeUIView(context: Context) -> BannerView {
         AdsManager.ensureStarted()
-        let width = UIScreen.main.bounds.width - 2 * Lovio.Metrics.screenPadding
+        let width = UIScreen.main.bounds.width
         let banner = BannerView(adSize: currentOrientationAnchoredAdaptiveBanner(width: width))
         banner.adUnitID = AdsManager.bannerUnitID
         banner.rootViewController = UIApplication.shared.connectedScenes
@@ -45,26 +45,22 @@ struct BannerAdView: UIViewRepresentable {
     func updateUIView(_ uiView: BannerView, context: Context) {}
 }
 
-/// Banner card with a "remove ads" premium hook underneath.
-struct AdBannerCard: View {
-    @State private var showPaywall = false
+/// Sticky banner pinned above the tab bar for free users — always visible.
+/// Nothing overlaps the ad itself (AdMob policy); a hairline divider separates
+/// it from content, and the bar background matches the tab bar.
+struct StickyAdBanner: View {
+    /// Adaptive banners pick their own height for the device width.
+    private var bannerHeight: CGFloat {
+        currentOrientationAnchoredAdaptiveBanner(width: UIScreen.main.bounds.width).size.height
+    }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
+            Divider()
             BannerAdView()
-                .frame(height: 62)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-
-            Button {
-                showPaywall = true
-            } label: {
-                Text("Remove ads with Premium")
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(.secondary)
-            }
+                .frame(maxWidth: .infinity)
+                .frame(height: bannerHeight)
         }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView(source: "remove_ads")
-        }
+        .background(.bar)
     }
 }

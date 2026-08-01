@@ -310,10 +310,11 @@ struct FirestoreQuestionService: QuestionService {
         return assemble(question, answers: answers, me: me)
     }
 
-    func submitAnswer(_ text: String, question: DailyQuestion,
+    func submitAnswer(_ text: String, rating: Int?, question: DailyQuestion,
                       relationship: RelationshipID, author: UserID) async throws -> DailyQuestionState {
         let answer = QuestionAnswer(id: "\(question.id)_\(author)",
-                                    questionID: question.id, authorID: author, text: text)
+                                    questionID: question.id, authorID: author, text: text,
+                                    rating: rating, questionText: question.text)
         try db.collection("relationships").document(relationship)
             .collection("answers").document(answer.id).setData(from: answer)
         let answers = try await fetchAnswers(question.id, relationship: relationship)

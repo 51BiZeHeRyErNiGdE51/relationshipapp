@@ -147,36 +147,64 @@ public enum QuestionBank {
         let index = abs(dayKey.hashValue) % all.count
         var q = all[index]
         q = DailyQuestion(id: "q_\(dayKey)", text: q.text, category: q.category,
-                          dayKey: dayKey, isPremium: q.isPremium)
+                          dayKey: dayKey, isPremium: q.isPremium, kind: q.kind)
         return q
     }
 
+    /// Built for distance: most questions are statements you rate in seconds —
+    /// thumbs (agree/disagree) or 1–5 — so both sides can answer from anywhere
+    /// and the ratings feed the couple's alignment score. A few open questions
+    /// stay in rotation for depth.
     public static let all: [DailyQuestion] = {
+        func t(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
+            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .thumbs)
+        }
+        func s(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
+            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .scale)
+        }
         func q(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
-            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium)
+            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .open)
         }
         return [
+            // Thumbs — agree or disagree, no typing needed.
+            t("Pineapple belongs on pizza.", .funny),
+            t("Texting back instantly is attractive.", .communication),
+            t("A lazy Sunday in bed beats a big night out.", .habits),
+            t("We should have a strict no-phones rule on dates.", .values),
+            t("Surprise visits are better than planned ones.", .romantic),
+            t("It's okay to share passwords with your partner.", .deep),
+            t("Long-distance actually made us stronger.", .deep),
+            t("Our first video call of the day should be mandatory.", .communication),
+            t("A small gift for no reason beats a big birthday gift.", .loveLanguages),
+            t("We'd survive a two-week road trip without fighting.", .travel),
+            t("Breakfast food is acceptable at any hour.", .funny),
+            t("Jealousy in small doses is healthy.", .conflict, premium: true),
+            t("We should get matching tattoos someday.", .future),
+            t("Watching a series ahead of your partner is a crime.", .funny),
+            t("Moving in together should happen before engagement.", .future),
+
+            // Scale 1–5 — how strongly do you feel it?
+            s("I'd move to another country if you asked me to.", .future),
+            s("I think about you during boring meetings.", .romantic),
+            s("I'm confident I know your coffee order by heart.", .habits),
+            s("Our video calls are the best part of my day.", .communication),
+            s("I'd let you plan our entire vacation without veto power.", .travel),
+            s("I could tell your mood from a single 'ok' text.", .deep),
+            s("We're aligned on how to spend and save money.", .money),
+            s("I want kids someday.", .kids),
+            s("I'd take a bullet train overnight just for 24 hours with you.", .romantic),
+            s("Meeting each other's friends matters more than meeting family first.", .family),
+            s("My career could handle a relocation for us.", .career),
+            s("I feel fully heard when we argue.", .conflict, premium: true),
+            s("Physical touch is my main love language.", .loveLanguages),
+            s("We should set one shared goal every month.", .goals),
+            s("I believe in soulmates.", .dreams),
+
+            // Open — a few classics for depth.
             q("What tiny moment with me do you replay in your head?", .romantic),
-            q("If we swapped phones for a day, what would embarrass me most?", .funny),
-            q("What's one thing you've never told anyone — even me?", .deep),
+            q("What's one thing you've never told anyone — even me?", .deep, premium: true),
             q("Where should we wake up on our 10th anniversary?", .future),
-            q("What's a dream you shelved that we should un-shelve together?", .dreams),
-            q("If money vanished as a concept, how would our week look?", .money),
-            q("Window or aisle — and defend your honor.", .travel),
-            q("What's one thing your parents did that you'd do differently?", .kids),
-            q("When do you feel most heard by me?", .communication),
             q("What's the best way for me to say sorry to you?", .conflict),
-            q("What's one goal we should finish before the year ends?", .goals),
-            q("What makes you feel most loved: words, time, help, gifts, or touch?", .loveLanguages),
-            q("Which family tradition do you want us to keep forever?", .family),
-            q("What habit of mine secretly makes you smile?", .habits),
-            q("If your career had a plan B you'd actually enjoy, what is it?", .career),
-            q("What value would you never compromise, even for me?", .values),
-            q("What's the weirdest thing you find attractive about me?", .funny),
-            q("What are you afraid to ask me?", .deep, premium: true),
-            q("Describe our first kiss from your point of view.", .romantic, premium: true),
-            q("What should we absolutely NOT do in front of my parents?", .funny),
-            q("Which city could you imagine us living in for a year?", .travel),
             q("What did today teach you about us?", .deep),
         ]
     }()
@@ -270,29 +298,49 @@ public struct DemoQuestionService: QuestionService {
         return makeState(q, answers: answers, me: me)
     }
 
-    public func submitAnswer(_ text: String, question: DailyQuestion,
+    public func submitAnswer(_ text: String, rating: Int?, question: DailyQuestion,
                              relationship: RelationshipID, author: UserID) async throws -> DailyQuestionState {
-        let answer = QuestionAnswer(questionID: question.id, authorID: author, text: text)
+        let answer = QuestionAnswer(questionID: question.id, authorID: author, text: text,
+                                    rating: rating, questionText: question.text)
         await DemoStore.shared.addAnswer(answer)
         let answers = await DemoStore.shared.answers[question.id] ?? []
         return makeState(question, answers: answers, me: author)
     }
 
     public func history(relationship: RelationshipID, limit: Int) async throws -> [DailyQuestionState] {
-        // Fabricate a few past revealed days for the archive UI.
+        // Fabricate a few past revealed days for the archive UI, with ratings
+        // that match each question's format so alignment scoring has data.
         (1...min(limit, 6)).map { offset in
             let date = Calendar.current.date(byAdding: .day, value: -offset, to: .now)!
             let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
             let key = f.string(from: date)
             let q = QuestionBank.question(for: key)
-            return DailyQuestionState(
-                question: q,
-                myAnswer: QuestionAnswer(questionID: q.id, authorID: "user_alex", text: "…", answeredAt: date),
-                partnerHasAnswered: true,
-                revealedAnswers: [
-                    QuestionAnswer(questionID: q.id, authorID: "user_alex", text: "Honestly, our kitchen dance breaks.", answeredAt: date),
-                    QuestionAnswer(questionID: q.id, authorID: "user_sam", text: "That you always warm my side of the bed first.", answeredAt: date),
-                ])
+            let (mine, partners): (QuestionAnswer, QuestionAnswer)
+            switch q.format {
+            case .thumbs:
+                let agree = offset % 3 != 0
+                mine = QuestionAnswer(questionID: q.id, authorID: "user_alex", text: "Agree",
+                                      answeredAt: date, rating: 1, questionText: q.text)
+                partners = QuestionAnswer(questionID: q.id, authorID: "user_sam",
+                                          text: agree ? "Agree" : "Disagree",
+                                          answeredAt: date, rating: agree ? 1 : 0, questionText: q.text)
+            case .scale:
+                let a = 3 + offset % 3, b = max(1, a - offset % 2)
+                mine = QuestionAnswer(questionID: q.id, authorID: "user_alex", text: "\(a)/5",
+                                      answeredAt: date, rating: a, questionText: q.text)
+                partners = QuestionAnswer(questionID: q.id, authorID: "user_sam", text: "\(b)/5",
+                                          answeredAt: date, rating: b, questionText: q.text)
+            case .open:
+                mine = QuestionAnswer(questionID: q.id, authorID: "user_alex",
+                                      text: "Honestly, our kitchen dance breaks.",
+                                      answeredAt: date, questionText: q.text)
+                partners = QuestionAnswer(questionID: q.id, authorID: "user_sam",
+                                          text: "That you always warm my side of the bed first.",
+                                          answeredAt: date, questionText: q.text)
+            }
+            return DailyQuestionState(question: q, myAnswer: mine,
+                                      partnerHasAnswered: true,
+                                      revealedAnswers: [mine, partners])
         }
     }
 

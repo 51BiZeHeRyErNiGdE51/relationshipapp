@@ -48,6 +48,7 @@ targets:
           - FirebaseAuth
           - FirebaseFirestore
           - FirebaseStorage
+          - FirebaseFunctions
           - FirebaseMessaging
           - FirebaseAnalytics
           - FirebaseRemoteConfig

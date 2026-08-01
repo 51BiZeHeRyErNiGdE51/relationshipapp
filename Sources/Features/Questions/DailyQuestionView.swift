@@ -8,6 +8,7 @@ struct DailyQuestionView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
+    @State private var scaleRating: Int?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -61,6 +62,7 @@ struct DailyQuestionView: View {
 
     // MARK: Compose
 
+    @ViewBuilder
     private func composer(_ state: DailyQuestionState) -> some View {
         VStack(spacing: 16) {
             if state.partnerHasAnswered {
@@ -71,6 +73,87 @@ struct DailyQuestionView: View {
                     .multilineTextAlignment(.center)
             }
 
+            switch state.question.format {
+            case .thumbs:  thumbsComposer
+            case .scale:   scaleComposer
+            case .open:    openComposer
+            }
+
+            Text("Your partner can't see it until they answer too.")
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Agree / disagree — one tap and it's sealed.
+    private var thumbsComposer: some View {
+        HStack(spacing: 14) {
+            thumbButton(agree: false)
+            thumbButton(agree: true)
+        }
+        .padding(.top, 8)
+    }
+
+    private func thumbButton(agree: Bool) -> some View {
+        Button {
+            Haptics.light()
+            Task { await model.answerTodayQuestion(agree ? "Agree" : "Disagree",
+                                                   rating: agree ? 1 : 0) }
+        } label: {
+            VStack(spacing: 8) {
+                Text(agree ? "👍" : "👎").font(.system(size: 44))
+                Text(agree ? "Agree" : "Disagree")
+                    .font(Lovio.Type_.headline)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+            .background {
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.ultraThinMaterial)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 1–5 hearts — how strongly do you feel it?
+    private var scaleComposer: some View {
+        VStack(spacing: 18) {
+            HStack(spacing: 12) {
+                ForEach(1...5, id: \.self) { value in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            scaleRating = value
+                        }
+                        Haptics.light()
+                    } label: {
+                        Image(systemName: (scaleRating ?? 0) >= value ? "heart.fill" : "heart")
+                            .font(.system(size: 34))
+                            .foregroundStyle(Lovio.Palette.rose)
+                            .scaleEffect(scaleRating == value ? 1.2 : 1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 8)
+
+            HStack {
+                Text("Not really").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+                Spacer()
+                Text("Absolutely").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+
+            Button("Seal my answer") {
+                guard let rating = scaleRating else { return }
+                Task { await model.answerTodayQuestion("\(rating)/5", rating: rating) }
+            }
+            .buttonStyle(LovioPrimaryButtonStyle())
+            .disabled(scaleRating == nil)
+        }
+    }
+
+    private var openComposer: some View {
+        VStack(spacing: 16) {
             TextField("Write your answer…", text: $draft, axis: .vertical)
                 .lineLimit(4...10)
                 .font(Lovio.Type_.body)
@@ -83,10 +166,6 @@ struct DailyQuestionView: View {
             }
             .buttonStyle(LovioPrimaryButtonStyle())
             .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            Text("Your partner can't see it until they answer too.")
-                .font(Lovio.Type_.caption)
-                .foregroundStyle(.secondary)
         }
         .onAppear { focused = true }
     }
@@ -110,9 +189,7 @@ struct DailyQuestionView: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Your answer").font(Lovio.Type_.caption).foregroundStyle(.secondary)
-                    Text(state.myAnswer?.text ?? "")
-                        .font(Lovio.Type_.body)
-                        .blur(radius: 0)
+                    AnswerDisplay(answer: state.myAnswer, kind: state.question.format)
                 }
             }
         }
@@ -123,6 +200,14 @@ struct DailyQuestionView: View {
 
     private func revealedAnswers(_ state: DailyQuestionState) -> some View {
         VStack(spacing: 14) {
+            if let match = QuestionAlignment.matchPercent(state) {
+                Text(QuestionAlignment.verdict(forMatch: match))
+                    .font(Lovio.Type_.headline)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(Lovio.Palette.rose.opacity(0.15)))
+            }
+
             ForEach(state.revealedAnswers) { answer in
                 let isMine = answer.authorID == model.user?.id
                 GlassCard(tint: isMine ? Lovio.Palette.rose : Lovio.Palette.lavender) {
@@ -130,8 +215,7 @@ struct DailyQuestionView: View {
                         Text(isMine ? model.myName : model.partnerName)
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(isMine ? Lovio.Palette.rose : Lovio.Palette.lavender)
-                        Text(answer.text)
-                            .font(Lovio.Type_.body)
+                        AnswerDisplay(answer: answer, kind: state.question.format)
                     }
                 }
                 .transition(.scale(scale: 0.9).combined(with: .opacity))
@@ -148,6 +232,39 @@ struct DailyQuestionView: View {
     }
 }
 
+/// Renders an answer according to its question format: thumbs → 👍/👎 label,
+/// scale → filled hearts, open → the written text.
+struct AnswerDisplay: View {
+    let answer: QuestionAnswer?
+    let kind: QuestionKind
+
+    var body: some View {
+        if let answer {
+            switch kind {
+            case .thumbs:
+                Label(answer.rating == 1 ? "Agree" : "Disagree",
+                      systemImage: answer.rating == 1 ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(answer.rating == 1 ? Lovio.Palette.teal : Lovio.Palette.gold)
+            case .scale:
+                HStack(spacing: 4) {
+                    ForEach(1...5, id: \.self) { value in
+                        Image(systemName: (answer.rating ?? 0) >= value ? "heart.fill" : "heart")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Lovio.Palette.rose)
+                    }
+                    Text("\(answer.rating ?? 0)/5")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                }
+            case .open:
+                Text(answer.text).font(Lovio.Type_.body)
+            }
+        }
+    }
+}
+
 // MARK: - Archive
 
 struct QuestionArchiveView: View {
@@ -157,11 +274,38 @@ struct QuestionArchiveView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
+                if let overall = QuestionAlignment.overall(history) {
+                    GlassCard(tint: Lovio.Palette.rose) {
+                        VStack(spacing: 8) {
+                            Text("\(overall.percent)%")
+                                .font(Lovio.Type_.display)
+                                .foregroundStyle(Lovio.Gradients.hero)
+                            Text("Your alignment across \(overall.count) rated question\(overall.count == 1 ? "" : "s")")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Text("The AI coach uses this to understand where you two click — and where to nudge.")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+
                 ForEach(history, id: \.question.id) { state in
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("\(state.question.category.emoji) \(state.question.text)")
-                                .font(Lovio.Type_.headline)
+                            HStack(alignment: .top) {
+                                Text("\(state.question.category.emoji) \(state.question.text)")
+                                    .font(Lovio.Type_.headline)
+                                Spacer()
+                                if let match = QuestionAlignment.matchPercent(state) {
+                                    Text("\(match)%")
+                                        .font(Lovio.Type_.caption)
+                                        .foregroundStyle(match >= 75 ? Lovio.Palette.teal : .secondary)
+                                }
+                            }
                             ForEach(state.revealedAnswers) { answer in
                                 HStack(alignment: .top, spacing: 8) {
                                     Circle()
@@ -169,8 +313,7 @@ struct QuestionArchiveView: View {
                                               ? Lovio.Palette.rose : Lovio.Palette.lavender)
                                         .frame(width: 7, height: 7)
                                         .padding(.top, 6)
-                                    Text(answer.text)
-                                        .font(Lovio.Type_.body)
+                                    AnswerDisplay(answer: answer, kind: state.question.format)
                                         .foregroundStyle(.secondary)
                                 }
                             }
