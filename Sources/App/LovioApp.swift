@@ -1,5 +1,4 @@
 import SwiftUI
-import AppTrackingTransparency
 import UserNotifications
 import FirebaseMessaging
 
@@ -12,22 +11,10 @@ struct LovioApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .task {
-                    await model.start()
-                    // UI tests / screenshot automation skip system permission prompts.
-                    guard !ProcessInfo.processInfo.arguments.contains("-skip-permission-prompts") else { return }
-                    await NotificationManager.shared.requestPermissionsAndSchedule(
-                        reminderHour: Int(model.services.experiments.variant(for: "daily_reminder_hour")) ?? 20)
-                    await requestTrackingAuthorization()
-                }
-        }
-    }
-
-    /// ATT prompt, deferred until after first meaningful screen renders.
-    private func requestTrackingAuthorization() async {
-        try? await Task.sleep(for: .seconds(2))
-        if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
-            _ = await ATTrackingManager.requestTrackingAuthorization()
+                // System permission prompts (ATT, push) are intentionally NOT
+                // requested here — AppModel.runPermissionPrompts() asks them
+                // one at a time once the user reaches the main screen.
+                .task { await model.start() }
         }
     }
 }

@@ -18,6 +18,7 @@ struct HomeView: View {
             VStack(spacing: 16) {
                 header
                 if model.isPaired { coupleHero } else { pairingHero }
+                notificationNudgeCard
                 questionCard
                 moodRow
                 widgetPromoCard
@@ -134,27 +135,28 @@ struct HomeView: View {
     // MARK: Hero — solo (pairing)
     //
     // Users can enter the app without a partner; connecting stays one tap
-    // away. This card disappears the moment a partner joins.
+    // away. Deliberately compact — one line, the code, two buttons.
+    // This card disappears the moment a partner joins.
 
     private var pairingHero: some View {
-        VStack(spacing: 14) {
-            MissuoLogoMark(size: 56, shadow: false)
-
-            Text("Missuo is better with your person")
-                .font(Lovio.Type_.title)
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-
-            Text("Share your code — it takes them 30 seconds to join.")
-                .font(Lovio.Type_.caption)
-                .foregroundStyle(.white.opacity(0.8))
-
-            Text(model.relationship?.inviteCode?.display ?? "· · · · · ·")
-                .font(.system(size: 38, weight: .heavy, design: .monospaced))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.15)))
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Invite your person")
+                        .font(Lovio.Type_.headline)
+                        .foregroundStyle(.white)
+                    Text("Joining takes 30 seconds")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                Spacer()
+                Text(model.relationship?.inviteCode?.display ?? "· · · · · ·")
+                    .font(.system(size: 22, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.15)))
+            }
 
             HStack(spacing: 10) {
                 if let code = model.relationship?.inviteCode?.value {
@@ -163,7 +165,7 @@ struct HomeView: View {
                             .font(Lovio.Type_.caption.weight(.semibold))
                             .foregroundStyle(Lovio.Palette.plum)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 10)
                             .background(Capsule().fill(.white))
                     }
                 }
@@ -174,18 +176,49 @@ struct HomeView: View {
                         .font(Lovio.Type_.caption.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 10)
                         .background(Capsule().fill(.white.opacity(0.2)))
                 }
             }
             .buttonStyle(.plain)
         }
-        .padding(20)
+        .padding(16)
         .frame(maxWidth: .infinity)
         .background {
             RoundedRectangle(cornerRadius: Lovio.Metrics.cornerRadius)
                 .fill(Lovio.Gradients.hero)
                 .shadow(color: Lovio.Palette.rose.opacity(0.35), radius: 18, y: 8)
+        }
+    }
+
+    // MARK: Notification nudge — shown only if the user declined the push prompt
+
+    @ViewBuilder
+    private var notificationNudgeCard: some View {
+        if model.notificationsDenied {
+            Button {
+                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                GlassCard(tint: Lovio.Palette.rose) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "bell.badge.fill")
+                            .font(.title3)
+                            .foregroundStyle(Lovio.Palette.rose)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Don't miss their moments")
+                                .font(Lovio.Type_.headline)
+                            Text("Turn on notifications and we'll only ping you when your love sends something — a miss-you, an answer, a photo.")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 

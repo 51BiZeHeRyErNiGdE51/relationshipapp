@@ -84,25 +84,35 @@ struct MainTabView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(source: "session_start")
         }
-        .onAppear {
-            if UserDefaults.standard.bool(forKey: "lovio.paywall.skipSessionStartOnce") {
-                UserDefaults.standard.set(false, forKey: "lovio.paywall.skipSessionStartOnce")
-                return
-            }
-            // Soft paywall exposure for free users — at most once per day.
-            let key = "lovio.paywall.lastShownDay"
-            let today = DayKey.today()
-            if !model.premium.isPremium, UserDefaults.standard.string(forKey: key) != today {
-                UserDefaults.standard.set(today, forKey: key)
-                showPaywall = true
-            }
+        .task {
+            // Strict order, one thing on screen at a time:
+            // 1) ATT dialog  2) push dialog  3) (maybe) daily paywall.
+            await model.runPermissionPrompts()
+            maybeShowSessionPaywall()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: UIApplication.willEnterForegroundNotification)) { _ in
             Task {
                 await model.drainWidgetOutbox()
                 await model.refreshToday()
+                // Picks up the user flipping notifications on in Settings.
+                await model.refreshNotificationStatus()
             }
+        }
+    }
+
+    /// Soft paywall exposure for free users — at most once per day, and only
+    /// after the permission prompts are done so dialogs never pile up.
+    private func maybeShowSessionPaywall() {
+        if UserDefaults.standard.bool(forKey: "lovio.paywall.skipSessionStartOnce") {
+            UserDefaults.standard.set(false, forKey: "lovio.paywall.skipSessionStartOnce")
+            return
+        }
+        let key = "lovio.paywall.lastShownDay"
+        let today = DayKey.today()
+        if !model.premium.isPremium, UserDefaults.standard.string(forKey: key) != today {
+            UserDefaults.standard.set(today, forKey: key)
+            showPaywall = true
         }
     }
 

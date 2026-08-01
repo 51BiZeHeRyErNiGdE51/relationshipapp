@@ -1,6 +1,8 @@
+import AppTrackingTransparency
 import Foundation
 import SwiftUI
 import UIKit
+import UserNotifications
 
 // MARK: - Service container
 
@@ -78,6 +80,9 @@ final class AppModel {
     /// True when the initial session couldn't be established (offline, rules
     /// misconfigured…) — the loading screen shows a Try Again button.
     private(set) var startupFailed = false
+    /// True when the user declined push permission — Home shows a gentle
+    /// inline card instead of us ever re-prompting.
+    private(set) var notificationsDenied = false
 
     init(services: Services, isDemoMode: Bool) {
         self.services = services
@@ -133,6 +138,37 @@ final class AppModel {
         await ensureSession()
         await drainWidgetOutbox()
         NotificationManager.shared.scheduleWeeklyPremiumNudge(isPremium: premium.isPremium)
+    }
+
+    // MARK: System permission prompts — one at a time, never during the tutorial
+    //
+    // Order on the main screen: 1) App Tracking Transparency, 2) push
+    // notifications. Each waits for the previous answer plus a small pause so
+    // the user never faces a stack of dialogs. If pushes are declined, Home
+    // shows a small inline card instead of re-prompting.
+
+    func runPermissionPrompts() async {
+        guard !ProcessInfo.processInfo.arguments.contains("-skip-permission-prompts") else { return }
+
+        // Let the main screen settle before the first dialog.
+        try? await Task.sleep(for: .seconds(1.2))
+        if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
+            _ = await ATTrackingManager.requestTrackingAuthorization()
+            // Breathing room between the two dialogs.
+            try? await Task.sleep(for: .seconds(1))
+        }
+
+        let center = UNUserNotificationCenter.current()
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            await NotificationManager.shared.requestPermissionsAndSchedule(
+                reminderHour: Int(services.experiments.variant(for: "daily_reminder_hour")) ?? 20)
+        }
+        await refreshNotificationStatus()
+    }
+
+    func refreshNotificationStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationsDenied = settings.authorizationStatus == .denied
     }
 
     /// One-time reset for installs that skipped the tutorial via an old Firebase shortcut.
