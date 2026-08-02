@@ -13,6 +13,16 @@ struct HomeView: View {
     @State private var showJoinSheet = false
     @State private var showOfferPaywall = false
     @State private var nameDraft = ""
+    @State private var showAnniversaryEditor = false
+    @State private var showScoreInfo = false
+    @State private var heartBurst: HeartBurst?
+
+    /// Full-screen floating-hearts moment (sent or received).
+    struct HeartBurst: Identifiable, Equatable {
+        let id = UUID()
+        let title: String
+        let emoji: String
+    }
 
     var body: some View {
         ScrollView {
@@ -20,6 +30,7 @@ struct HomeView: View {
                 header
                 nameCaptureCard
                 if model.isPaired { coupleHero } else { pairingHero }
+                anniversaryCard
                 notificationNudgeCard
                 questionCard
                 moodRow
@@ -47,7 +58,42 @@ struct HomeView: View {
         .sheet(isPresented: $showOfferPaywall) {
             PaywallView(source: "home_offer_chip", startOnSecondary: true)
         }
+        .sheet(isPresented: $showAnniversaryEditor) { AnniversaryEditorSheet() }
+        .alert("How your scores work", isPresented: $showScoreInfo) {
+            Button("Got it", role: .cancel) {}
+        } message: {
+            Text("Streak — days in a row you've both shown up (answers, moods, hearts).\n\nLove score — a 0–100 health score that rises with every shared action and gently drifts down when things go quiet.\n\nLevel — grows with everything you two do together; it never goes down.")
+        }
+        .overlay {
+            if model.justPaired {
+                PairedCelebrationView(partnerName: model.partnerFirstName ?? "your love") {
+                    model.justPaired = false
+                }
+            } else if let burst = heartBurst {
+                HeartBurstView(burst: burst)
+            }
+        }
+        .onChange(of: model.incomingLove) { _, love in
+            guard let love else { return }
+            let who = model.partnerFirstName ?? "Your love"
+            showHeartBurst(HeartBurst(
+                title: love.kind == .heartTap
+                    ? "\(who) dropped \(love.count == 1 ? "a heart" : "\(love.count) hearts") in your jar"
+                    : "\(who) misses you\(love.count > 1 ? " ×\(love.count)" : "") 🥺",
+                emoji: love.kind == .heartTap ? "💛" : "💌"))
+            model.incomingLove = nil
+        }
         .refreshable { await model.refreshToday() }
+    }
+
+    private func showHeartBurst(_ burst: HeartBurst) {
+        withAnimation(.smooth) { heartBurst = burst }
+        Task {
+            try? await Task.sleep(for: .seconds(2.6))
+            withAnimation(.smooth) {
+                if heartBurst == burst { heartBurst = nil }
+            }
+        }
     }
 
     // MARK: Secondary-offer reminder chip (in-app companion to the push nudges)
@@ -83,37 +129,54 @@ struct HomeView: View {
     // days counter front and center, streak + love score as satellites.
 
     private var coupleHero: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             HStack {
-                AvatarPair(left: model.myProfile?.initials ?? "Y",
-                           right: model.partnerProfile?.initials ?? "L", size: 44)
+                AvatarPair(left: model.myProfile?.initials ?? "♥",
+                           right: model.partnerProfile?.initials ?? "♥", size: 44)
                 Spacer()
                 HeartPulse(size: 26)
             }
 
             VStack(spacing: 2) {
-                Text("\(model.relationship?.daysTogether ?? 0)")
-                    .font(.system(size: 56, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .contentTransition(.numericText())
-                Text("days of \(model.myFirstName) & \(model.partnerFirstName ?? "you")")
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(.white.opacity(0.85))
+                if model.relationship?.anniversary != nil {
+                    Text("\(model.relationship?.daysTogether ?? 0)")
+                        .font(.system(size: 52, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                    Text("days of \(model.myFirstName) & \(model.partnerFirstName ?? "you")")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                    if let next = model.relationship?.daysUntilNextAnniversary {
+                        Text(next == 0 ? "It's your anniversary — today! 🎉"
+                                       : "🎂 Anniversary in \(next) day\(next == 1 ? "" : "s")")
+                            .font(Lovio.Type_.caption.weight(.semibold))
+                            .foregroundStyle(Lovio.Palette.gold)
+                            .padding(.top, 2)
+                    }
+                } else {
+                    Text("\(model.myFirstName) & \(model.partnerFirstName ?? "you")")
+                        .font(Lovio.Type_.title)
+                        .foregroundStyle(.white)
+                }
             }
 
-            HStack(spacing: 10) {
-                heroChip(symbol: "flame.fill",
-                         value: "\(model.relationship?.streak.current ?? 0)",
-                         label: "streak")
-                heroChip(symbol: "heart.fill",
-                         value: "\(model.relationship?.loveScore ?? 0)",
-                         label: "love score")
-                heroChip(symbol: "rosette",
-                         value: "\(model.relationship?.level ?? 1)",
-                         label: "level")
+            // Tap any stat for a plain-language explanation.
+            Button { showScoreInfo = true } label: {
+                HStack(spacing: 8) {
+                    heroChip(symbol: "flame.fill",
+                             value: "\(model.relationship?.streak.current ?? 0)",
+                             label: "streak")
+                    heroChip(symbol: "heart.fill",
+                             value: "\(model.relationship?.loveScore ?? 0)",
+                             label: "love")
+                    heroChip(symbol: "rosette",
+                             value: "\(model.relationship?.level ?? 1)",
+                             label: "level")
+                }
             }
+            .buttonStyle(.plain)
         }
-        .padding(20)
+        .padding(18)
         .frame(maxWidth: .infinity)
         .background {
             RoundedRectangle(cornerRadius: Lovio.Metrics.cornerRadius)
@@ -122,18 +185,48 @@ struct HomeView: View {
         }
     }
 
+    /// Compact: number on top, single short word under it — never wraps.
     private func heroChip(symbol: String, value: String, label: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol).font(.caption)
-            Text(value).font(.system(.subheadline, design: .rounded, weight: .heavy))
-            Text(label).font(.system(.caption2, design: .rounded))
-                .opacity(0.8)
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol).font(.caption2)
+                Text(value).font(.system(.subheadline, design: .rounded, weight: .heavy))
+            }
+            Text(label)
+                .font(.system(size: 10, design: .rounded))
+                .opacity(0.75)
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Capsule().fill(.white.opacity(0.18)))
         .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.18)))
+    }
+
+    // MARK: Anniversary — prompt once paired, edit any time in Settings
+
+    @ViewBuilder
+    private var anniversaryCard: some View {
+        if model.isPaired, model.relationship?.anniversary == nil {
+            Button { showAnniversaryEditor = true } label: {
+                GlassCard(tint: Lovio.Palette.gold) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.title3)
+                            .foregroundStyle(Lovio.Palette.gold)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("When did you two begin?")
+                                .font(Lovio.Type_.headline)
+                            Text("Set your date to unlock the day counter, anniversary countdown and the Love Days widget.")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: Hero — solo (pairing)
@@ -379,9 +472,22 @@ struct HomeView: View {
         Button { showMoodSheet = true } label: {
             GlassCard(tint: Lovio.Palette.teal) {
                 HStack(spacing: 18) {
-                    moodBubble(name: "You", entry: model.user.flatMap { model.latestMoods[$0.id] })
+                    moodBubble(name: model.myFirstName, entry: model.user.flatMap { model.latestMoods[$0.id] })
                     Divider().frame(height: 44)
-                    moodBubble(name: model.partnerFirstName ?? "Partner", entry: partnerMood)
+                    if model.isPaired {
+                        moodBubble(name: model.partnerFirstName ?? "Partner", entry: partnerMood)
+                    } else {
+                        // Honest unpaired state — no phantom partner.
+                        HStack(spacing: 10) {
+                            Text("🫥").font(.system(size: 30)).opacity(0.5)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Partner").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+                                Text("Not paired yet")
+                                    .font(Lovio.Type_.headline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     Spacer()
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
@@ -499,6 +605,11 @@ struct HomeView: View {
     private var missYouButton: some View {
         Button {
             missYouBurst = true
+            showHeartBurst(HeartBurst(
+                title: model.isPaired
+                    ? "Sent! \(model.partnerFirstName ?? "Your love")'s phone lights up 💗"
+                    : "Saved — it reaches them once you pair 💗",
+                emoji: "💗"))
             Task {
                 await model.sendMissYou()
                 try? await Task.sleep(for: .seconds(1.4))
@@ -517,5 +628,152 @@ struct HomeView: View {
             .background(Capsule().fill(Lovio.Palette.rose.opacity(0.12)))
         }
         .accessibilityLabel("Send Miss You to your partner")
+    }
+}
+
+// MARK: - Paired celebration (full screen, one-time per pairing)
+
+struct PairedCelebrationView: View {
+    let partnerName: String
+    let dismiss: () -> Void
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
+            FloatingHearts(emoji: "💞", count: 14)
+
+            VStack(spacing: 18) {
+                Text("💞")
+                    .font(.system(size: 84))
+                    .scaleEffect(animate ? 1 : 0.3)
+                    .animation(.bouncy(duration: 0.7), value: animate)
+
+                Text("You're connected!")
+                    .font(.system(.largeTitle, design: .rounded, weight: .heavy))
+                Text("You and \(partnerName) now share one space — questions, moods, hearts and widgets flow both ways.")
+                    .font(Lovio.Type_.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                Button(action: dismiss) {
+                    Text("Start your story")
+                        .font(Lovio.Type_.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Capsule().fill(Lovio.Gradients.hero))
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 8)
+            }
+            .opacity(animate ? 1 : 0)
+            .animation(.smooth(duration: 0.5), value: animate)
+        }
+        .onAppear { animate = true }
+        .transition(.opacity)
+    }
+}
+
+// MARK: - Heart burst (sent / received love)
+
+struct HeartBurstView: View {
+    let burst: HomeView.HeartBurst
+
+    var body: some View {
+        ZStack {
+            FloatingHearts(emoji: burst.emoji, count: 10)
+            VStack {
+                Spacer()
+                Text(burst.title)
+                    .font(Lovio.Type_.headline)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(.ultraThinMaterial))
+                    .padding(.bottom, 60)
+            }
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+}
+
+/// Emojis float from the bottom to the top of the screen and fade out.
+struct FloatingHearts: View {
+    let emoji: String
+    let count: Int
+    @State private var rise = false
+
+    var body: some View {
+        GeometryReader { geo in
+            ForEach(0..<count, id: \.self) { i in
+                let x = CGFloat.random(in: 0.08...0.92, seeded: i)
+                let delay = Double(i) * 0.12
+                let size = CGFloat.random(in: 26...46, seeded: i + 100)
+                Text(emoji)
+                    .font(.system(size: size))
+                    .position(x: geo.size.width * x,
+                              y: rise ? -60 : geo.size.height + 60)
+                    .opacity(rise ? 0 : 1)
+                    .animation(.easeOut(duration: 2.2).delay(delay), value: rise)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onAppear { rise = true }
+    }
+}
+
+private extension CGFloat {
+    /// Deterministic pseudo-random in range — stable per heart index so the
+    /// layout doesn't jump between renders.
+    static func random(in range: ClosedRange<CGFloat>, seeded seed: Int) -> CGFloat {
+        var value = UInt64(seed &+ 1) &* 6364136223846793005 &+ 1442695040888963407
+        value = (value ^ (value >> 33)) &* 0xff51afd7ed558ccd
+        let unit = CGFloat(value % 10_000) / 10_000
+        return range.lowerBound + unit * (range.upperBound - range.lowerBound)
+    }
+}
+
+// MARK: - Anniversary editor (also reachable from Settings)
+
+struct AnniversaryEditorSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker("The day you two began", selection: $date,
+                               in: ...Date(), displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                } footer: {
+                    Text("Powers your day counter, the anniversary countdown on Home and the Love Days widget. Change it any time in Settings.")
+                }
+            }
+            .navigationTitle("Your anniversary")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await model.setAnniversary(date)
+                            await model.refreshToday()
+                            dismiss()
+                        }
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .onAppear { date = model.relationship?.anniversary ?? .now }
     }
 }

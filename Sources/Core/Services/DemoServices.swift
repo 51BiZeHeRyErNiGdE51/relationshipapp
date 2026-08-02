@@ -132,19 +132,22 @@ public actor DemoStore {
     func addAnswer(_ a: QuestionAnswer) { answers[a.questionID, default: []].append(a) }
     func setPremiumPurchaser(_ u: UserID?) { premiumPurchaser = u }
 
-    // Shared widget content + in-memory image store (demo mode)
-    var widgetContent: SharedWidgetContent?
+    // Shared widget content (per author) + in-memory image store (demo mode)
+    var widgetContent: [UserID: SharedWidgetContent] = [:]
     var imageStore: [String: Data] = [:]
-    func setWidgetContent(_ c: SharedWidgetContent) { widgetContent = c }
+    func setWidgetContent(_ c: SharedWidgetContent, author: UserID) { widgetContent[author] = c }
     func storeImage(_ data: Data, path: String) { imageStore[path] = data }
 }
 
 // MARK: - Question bank
 
 public enum QuestionBank {
-    /// Deterministic daily rotation: same question for both partners on a given day.
+    /// Deterministic daily rotation: same question for both partners on a
+    /// given day. NEVER use String.hashValue here — Swift seeds it randomly
+    /// per process, which gave each partner a different daily question.
     public static func question(for dayKey: String) -> DailyQuestion {
-        let index = abs(dayKey.hashValue) % all.count
+        let seed = dayKey.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0x7fff_ffff }
+        let index = seed % all.count
         var q = all[index]
         q = DailyQuestion(id: "q_\(dayKey)", text: q.text, category: q.category,
                           dayKey: dayKey, isPremium: q.isPremium, kind: q.kind)
@@ -271,11 +274,11 @@ public struct DemoRelationshipService: RelationshipService {
         await DemoStore.shared.setRelationship(relationship)
     }
 
-    public func widgetContent(relationship: RelationshipID) async throws -> SharedWidgetContent? {
-        await DemoStore.shared.widgetContent
+    public func widgetContent(relationship: RelationshipID, author: UserID) async throws -> SharedWidgetContent? {
+        await DemoStore.shared.widgetContent[author]
     }
-    public func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID) async throws {
-        await DemoStore.shared.setWidgetContent(content)
+    public func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID, author: UserID) async throws {
+        await DemoStore.shared.setWidgetContent(content, author: author)
     }
     public func uploadImage(_ jpeg: Data, relationship: RelationshipID, fileName: String) async throws -> String {
         let path = "demo/\(relationship)/\(fileName)"
@@ -483,23 +486,40 @@ public struct DemoPremiumService: PremiumService {
 public struct DemoAICoachService: AICoachService {
     public init() {}
 
+    /// Offline fallback: built ONLY from the couple's real stats — never
+    /// invents names or events (an old canned version mentioned "Sam").
     public func weeklyReport(relationship: Relationship, events: [RelationshipEvent]) async throws -> [AIInsight] {
-        [
-            AIInsight(title: "Your rhythm is strong",
-                      body: "You answered \(min(7, max(3, events.count))) daily questions together this week — couples who answer 5+ report feeling 2× more connected.",
-                      symbol: "waveform.path.ecg"),
-            AIInsight(title: "Sam feels loved through time",
-                      body: "Quality Time keeps showing up in Sam's answers. Your jazz bar date on Friday lands exactly right — consider making it phone-free.",
-                      symbol: "clock.badge.heart"),
-            AIInsight(title: "Mood dip on Wednesdays",
-                      body: "Both of your energy scores drop midweek. A 10-minute evening walk together on Wednesdays could smooth the curve.",
-                      symbol: "chart.line.downtrend.xyaxis"),
-        ]
+        let week = Calendar.current.date(byAdding: .day, value: -7, to: .now)!
+        let recent = events.filter { $0.occurredAt > week }
+        let answers = recent.filter { $0.kind == .questionAnswered }.count
+        let hearts = recent.filter { $0.kind == .missYouSent || $0.kind == .heartTap }.count
+        let streak = relationship.streak.current
+
+        var insights: [AIInsight] = []
+        insights.append(AIInsight(
+            title: streak > 0 ? "\(streak)-day streak" : "Restart your rhythm",
+            body: streak > 0
+                ? "You've both shown up \(streak) day\(streak == 1 ? "" : "s") in a row. Couples who keep a daily ritual report feeling noticeably closer — keep it alive with one small check-in today."
+                : "Your streak reset — no guilt, it happens. One answered question or a quick mood check-in today starts it again.",
+            symbol: "flame.fill"))
+        insights.append(AIInsight(
+            title: answers > 0 ? "\(answers) question\(answers == 1 ? "" : "s") answered" : "Try today's question",
+            body: answers > 0
+                ? "You answered \(answers) daily question\(answers == 1 ? "" : "s") this week. Every match (or mismatch!) you discover is a conversation you wouldn't have had otherwise."
+                : "No questions answered this week. Today's takes under 10 seconds — and you get to see your partner's take once you both answer.",
+            symbol: "bubble.left.and.bubble.right.fill"))
+        insights.append(AIInsight(
+            title: hearts > 0 ? "\(hearts) love signal\(hearts == 1 ? "" : "s") sent" : "Send a tiny signal",
+            body: hearts > 0
+                ? "Miss-yous and heart taps flew \(hearts) time\(hearts == 1 ? "" : "s") between you. Those tiny pings matter more across distance than grand gestures."
+                : "The Miss You button takes one tap and lights up your partner's phone. Small signals, big feeling.",
+            symbol: "heart.fill"))
+        return insights
     }
 
     public func dateIdeas(relationship: Relationship) async throws -> [String] {
         ["Golden-hour photo walk, then compare shots over dessert",
-         "Cook the dish from your Rome trip playlist night",
+         "Cook the same recipe together over a video call",
          "Bookstore date: pick a book for each other, read the first chapter aloud",
          "Sunrise drive with a thermos of the fancy coffee"]
     }
@@ -511,7 +531,7 @@ public struct DemoAICoachService: AICoachService {
     }
 
     public func chat(message: String, relationship: Relationship) async throws -> String {
-        "That's worth sitting with. From your recent check-ins, you both recharge in different ways — Alex through activity, Sam through quiet. Try naming which mode you're in before reacting; it turns friction into information. Want a small exercise for tonight?"
+        "I couldn't reach the coach right now — check your connection and try again in a moment. Meanwhile: naming which mode you're in (recharging vs. connecting) before reacting turns friction into information."
     }
 }
 

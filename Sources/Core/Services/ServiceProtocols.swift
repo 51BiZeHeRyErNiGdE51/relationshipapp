@@ -58,9 +58,10 @@ public protocol RelationshipService: Sendable {
     func updateGamification(_ relationship: Relationship) async throws
 
     // MARK: Shared widget content (photo + note synced to both partners)
+    // Stored per author so each partner's photo/note travels independently.
 
-    func widgetContent(relationship: RelationshipID) async throws -> SharedWidgetContent?
-    func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID) async throws
+    func widgetContent(relationship: RelationshipID, author: UserID) async throws -> SharedWidgetContent?
+    func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID, author: UserID) async throws
     /// Uploads a JPEG to shared storage; returns the storage path.
     func uploadImage(_ jpeg: Data, relationship: RelationshipID, fileName: String) async throws -> String
     func downloadImage(path: String) async throws -> Data

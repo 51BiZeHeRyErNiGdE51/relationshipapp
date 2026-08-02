@@ -523,20 +523,60 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var showEndRelationship = false
     @State private var nameDraft = ""
+    @State private var nameSaved = false
+    @State private var showAnniversaryEditor = false
+
+    private var nameChanged: Bool {
+        let trimmed = nameDraft.trimmingCharacters(in: .whitespaces)
+        return !trimmed.isEmpty && trimmed != (model.needsMyName ? "" : model.myName)
+    }
 
     var body: some View {
         List {
             Section {
-                TextField("Your name", text: $nameDraft)
-                    .textInputAutocapitalization(.words)
-                    .onSubmit { Task { await model.updateMyName(nameDraft) } }
+                HStack {
+                    TextField("Your name", text: $nameDraft)
+                        .textInputAutocapitalization(.words)
+                        .onSubmit { saveName() }
+                    // Explicit Save — the keyboard "Done" button only closes
+                    // the keyboard and never fired onSubmit, so typed names
+                    // were silently dropped.
+                    if nameChanged {
+                        Button("Save") { saveName() }
+                            .font(Lovio.Type_.caption.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .tint(Lovio.Palette.rose)
+                    } else if nameSaved {
+                        Label("Saved", systemImage: "checkmark.circle.fill")
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(.green)
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+                if model.relationship != nil {
+                    Button {
+                        showAnniversaryEditor = true
+                    } label: {
+                        LabeledContent("Anniversary") {
+                            HStack(spacing: 6) {
+                                Text(model.relationship?.anniversary.map {
+                                    $0.formatted(date: .abbreviated, time: .omitted)
+                                } ?? "Set date")
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
                 if let code = model.relationship?.inviteCode?.display {
                     LabeledContent("Invite code", value: code)
                 }
             } header: {
                 Text("Your couple")
             } footer: {
-                Text("Your name is what \(model.partnerFirstName ?? "your partner") sees in the app and on their widgets. Press return to save.")
+                Text("Your name is what \(model.partnerFirstName ?? "your partner") sees in the app and on their widgets. The anniversary powers the day counter and widget countdown.")
             }
 
             Section("Subscription") {
@@ -583,6 +623,8 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .dismissableKeyboard()
         .onAppear { nameDraft = model.needsMyName ? "" : model.myName }
+        .onChange(of: nameDraft) { _, _ in nameSaved = false }
+        .sheet(isPresented: $showAnniversaryEditor) { AnniversaryEditorSheet() }
         .confirmationDialog("End this relationship?", isPresented: $showEndRelationship,
                             titleVisibility: .visible) {
             Button("End relationship", role: .destructive) {
@@ -590,6 +632,16 @@ struct SettingsView: View {
             }
         } message: {
             Text("Shared content is archived. If you purchased Premium, it stays with you and follows you into a future relationship.")
+        }
+    }
+
+    private func saveName() {
+        let name = nameDraft.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        Task {
+            await model.updateMyName(name)
+            nameSaved = true
+            Haptics.success()
         }
     }
 }

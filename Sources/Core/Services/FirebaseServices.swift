@@ -53,8 +53,9 @@ final class FirebaseAuthService: NSObject, AuthService, @unchecked Sendable {
 
     func currentUser() async -> AuthenticatedUser? {
         guard let user = Auth.auth().currentUser else { return nil }
+        // Empty (NOT "You") when unnamed — Home shows the name-capture card.
         return AuthenticatedUser(id: user.uid,
-                                 displayName: user.displayName ?? "You",
+                                 displayName: user.displayName ?? "",
                                  email: user.email)
     }
 
@@ -69,7 +70,7 @@ final class FirebaseAuthService: NSObject, AuthService, @unchecked Sendable {
 
     private func signInAnonymously() async throws -> AuthenticatedUser {
         let result = try await Auth.auth().signInAnonymously()
-        return AuthenticatedUser(id: result.user.uid, displayName: "You", email: nil)
+        return AuthenticatedUser(id: result.user.uid, displayName: "", email: nil)
     }
 
     func signOut() async throws {
@@ -118,7 +119,7 @@ final class FirebaseAuthService: NSObject, AuthService, @unchecked Sendable {
                                                        accessToken: result.user.accessToken.tokenString)
         let authResult = try await Auth.auth().signIn(with: credential)
         return AuthenticatedUser(id: authResult.user.uid,
-                                 displayName: authResult.user.displayName ?? "You",
+                                 displayName: authResult.user.displayName ?? "",
                                  email: authResult.user.email)
     }
 
@@ -162,7 +163,7 @@ extension FirebaseAuthService: ASAuthorizationControllerDelegate,
                 }
                 self.appleContinuation?.resume(returning: AuthenticatedUser(
                     id: result.user.uid,
-                    displayName: result.user.displayName ?? name ?? "You",
+                    displayName: result.user.displayName ?? name ?? "",
                     email: result.user.email))
             } catch {
                 self.appleContinuation?.resume(throwing: error)
@@ -191,14 +192,20 @@ struct FirestoreRelationshipService: RelationshipService {
 
     func currentRelationship(for user: UserID) async throws -> Relationship? {
         // Single-field query (no composite index needed); status filtered locally.
+        // An ACTIVE (paired) relationship always beats a pending solo one —
+        // this is also how the creator's device discovers the partner joined.
         let snapshot = try await db.collection("relationships")
             .whereField("memberIDs", arrayContains: user)
             .getDocuments()
-        return snapshot.documents
-            .compactMap { try? $0.data(as: Relationship.self) }
-            .filter { $0.status == .active || $0.status == .pendingPartner }
-            .sorted { $0.createdAt > $1.createdAt }
-            .first
+        var candidates: [Relationship] = snapshot.documents.compactMap {
+            try? $0.data(as: Relationship.self)
+        }
+        candidates = candidates.filter { rel in
+            rel.status == .active || rel.status == .pendingPartner
+        }
+        candidates.sort { $0.createdAt > $1.createdAt }
+        let active = candidates.first { rel in rel.status == .active }
+        return active ?? candidates.first
     }
 
     func createRelationship(creator: UserID, anniversary: Date?) async throws -> Relationship {
@@ -221,6 +228,11 @@ struct FirestoreRelationshipService: RelationshipService {
         }
         let ref = db.collection("relationships").document(relID)
         var relationship = try await ref.getDocument(as: Relationship.self)
+        // Stale codes must never resurrect an ended (or already full)
+        // relationship — that silently puts the couple in different spaces.
+        guard relationship.status == .pendingPartner else {
+            throw LovioError.invalidInviteCode
+        }
         // Entering your OWN code must never "activate" a solo relationship.
         guard !relationship.memberIDs.contains(joiner) else {
             throw LovioError.cantPairWithSelf
@@ -235,6 +247,12 @@ struct FirestoreRelationshipService: RelationshipService {
     }
 
     func endRelationship(_ id: RelationshipID, endedBy: UserID) async throws {
+        // Kill the invite code first so stale codes can't be redeemed later.
+        if let rel = try? await db.collection("relationships").document(id)
+            .getDocument(as: Relationship.self),
+           let code = rel.inviteCode?.value {
+            try? await db.collection("invites").document(code).delete()
+        }
         try await db.collection("relationships").document(id).updateData([
             "status": RelationshipStatus.ended.rawValue,
             "endedAt": Timestamp(date: .now),
@@ -275,15 +293,17 @@ struct FirestoreRelationshipService: RelationshipService {
 
     // MARK: Shared widget content + image storage
 
-    func widgetContent(relationship: RelationshipID) async throws -> SharedWidgetContent? {
+    // One document PER AUTHOR (widgetContent/{userID}) — a shared doc meant
+    // both partners overwrote each other's photo/note (last writer wins).
+    func widgetContent(relationship: RelationshipID, author: UserID) async throws -> SharedWidgetContent? {
         let doc = try await db.collection("relationships").document(relationship)
-            .collection("widgetContent").document("state").getDocument()
+            .collection("widgetContent").document(author).getDocument()
         return try? doc.data(as: SharedWidgetContent.self)
     }
 
-    func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID) async throws {
+    func saveWidgetContent(_ content: SharedWidgetContent, relationship: RelationshipID, author: UserID) async throws {
         try db.collection("relationships").document(relationship)
-            .collection("widgetContent").document("state").setData(from: content, merge: true)
+            .collection("widgetContent").document(author).setData(from: content, merge: true)
     }
 
     func uploadImage(_ jpeg: Data, relationship: RelationshipID, fileName: String) async throws -> String {

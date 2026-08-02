@@ -36,10 +36,34 @@ struct CloudAICoachService: AICoachService {
         }
     }
 
-    // Structured outputs stay on curated content until we design their
-    // server-side prompts — the free-form surfaces are live AI already.
+    /// Live DeepSeek report over the couple's real Firestore context.
+    /// Server replies 3 lines of "Title | body"; falls back to the local
+    /// stats-based report if the function is unreachable.
     func weeklyReport(relationship: Relationship, events: [RelationshipEvent]) async throws -> [AIInsight] {
-        try await fallback.weeklyReport(relationship: relationship, events: events)
+        do {
+            let reply = try await ask(mode: "weeklyReport",
+                                      message: "Write our weekly relationship report.",
+                                      relationship: relationship)
+            let symbols = ["waveform.path.ecg", "heart.text.square", "sparkles"]
+            let insights = reply
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { $0.contains("|") }
+                .prefix(3)
+                .enumerated()
+                .map { index, line -> AIInsight in
+                    let parts = line.split(separator: "|", maxSplits: 1).map {
+                        $0.trimmingCharacters(in: .whitespaces)
+                    }
+                    return AIInsight(title: parts.first ?? "This week",
+                                     body: parts.count > 1 ? parts[1] : line,
+                                     symbol: symbols[index % symbols.count])
+                }
+            guard !insights.isEmpty else { throw LovioError.notSignedIn }
+            return Array(insights)
+        } catch {
+            return try await fallback.weeklyReport(relationship: relationship, events: events)
+        }
     }
 
     func conversationStarters(relationship: Relationship) async throws -> [String] {

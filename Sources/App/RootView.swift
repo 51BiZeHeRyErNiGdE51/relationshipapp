@@ -85,10 +85,18 @@ struct MainTabView: View {
             PaywallView(source: "session_start")
         }
         .task {
+            // Fresh data on cold start (pairing status, partner photo, jar).
+            await model.refreshToday()
             // Strict order, one thing on screen at a time:
             // 1) ATT dialog  2) push dialog  3) (maybe) daily paywall.
             await model.runPermissionPrompts()
             maybeShowSessionPaywall()
+            // Gentle foreground poll so the partner joining, hearts and
+            // widget photos show up WITHOUT pull-to-refresh.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                await model.refreshToday()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: UIApplication.willEnterForegroundNotification)) { _ in

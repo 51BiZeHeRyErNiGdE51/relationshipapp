@@ -140,6 +140,19 @@ public struct Relationship: Codable, Identifiable, Hashable, Sendable {
         return max(0, Calendar.current.dateComponents([.day], from: anniversary, to: .now).day ?? 0)
     }
 
+    /// Days until the next yearly anniversary (0 = today 🎉), nil when unset.
+    public var daysUntilNextAnniversary: Int? {
+        guard let anniversary else { return nil }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let components = cal.dateComponents([.month, .day], from: anniversary)
+        if cal.dateComponents([.month, .day], from: today) == components { return 0 }
+        guard let next = cal.nextDate(after: today, matching: components,
+                                      matchingPolicy: .nextTimePreservingSmallerComponents)
+        else { return nil }
+        return cal.dateComponents([.day], from: today, to: next).day
+    }
+
     public var level: Int { 1 + xp / 500 }
     public var xpIntoLevel: Int { xp % 500 }
 }

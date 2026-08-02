@@ -18,6 +18,11 @@ struct LoveDaysWidget: Widget {
                     Text("days of us")
                         .font(.system(.caption, design: .rounded, weight: .medium))
                         .foregroundStyle(.white.opacity(0.75))
+                    if let next = entry.snapshot.nextAnniversaryDays {
+                        Text(next == 0 ? "Anniversary today 🎉" : "🎂 anniversary in \(next)d")
+                            .font(.system(size: 10, design: .rounded))
+                            .foregroundStyle(Lovio.Palette.gold)
+                    }
                 }
                 .lovioWidgetContainer()
             } else {

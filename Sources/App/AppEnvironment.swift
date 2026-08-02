@@ -83,6 +83,9 @@ final class AppModel {
     /// True when the user declined push permission — Home shows a gentle
     /// inline card instead of us ever re-prompting.
     private(set) var notificationsDenied = false
+    /// Set the moment the couple becomes paired (either direction) —
+    /// Home plays a full-screen celebration and clears it.
+    var justPaired = false
 
     init(services: Services, isDemoMode: Bool) {
         self.services = services
@@ -94,20 +97,24 @@ final class AppModel {
         return AppModel(services: hasFirebase ? .live() : .demo(), isDemoMode: !hasFirebase)
     }
 
-    var partnerName: String {
-        let name = partnerProfile?.displayName ?? ""
-        return name.isEmpty ? "Your partner" : name
+    // "You" was a literal default written by an old build — treat it as unnamed.
+    private static func realName(_ raw: String?) -> String? {
+        let name = (raw ?? "").trimmingCharacters(in: .whitespaces)
+        return (name.isEmpty || name == "You") ? nil : name
     }
+
+    var partnerName: String { Self.realName(partnerProfile?.displayName) ?? "Your partner" }
     var myName: String {
-        let name = myProfile?.displayName ?? user?.displayName ?? ""
-        return name.isEmpty ? "You" : name
+        Self.realName(myProfile?.displayName) ?? Self.realName(user?.displayName) ?? "You"
     }
 
     /// Anonymous sign-in means nobody typed a name; Home shows a one-time
-    /// card until they do (editable later in Settings).
+    /// card until they do (editable later in Settings). "You" counts as
+    /// unnamed — an old build wrote it as a literal default.
     var needsMyName: Bool {
-        user != nil &&
-        (myProfile?.displayName ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+        guard user != nil else { return false }
+        let name = (myProfile?.displayName ?? "").trimmingCharacters(in: .whitespaces)
+        return name.isEmpty || name == "You"
     }
 
     /// Saves my display name — it syncs to my partner's app (their "partner
@@ -125,8 +132,8 @@ final class AppModel {
     /// sites can choose their own fallback ("your partner", "Partner", …).
     var myFirstName: String { myName.split(separator: " ").first.map(String.init) ?? "You" }
     var partnerFirstName: String? {
-        let name = partnerProfile?.displayName ?? ""
-        return name.isEmpty ? nil : name.split(separator: " ").first.map(String.init)
+        Self.realName(partnerProfile?.displayName)?
+            .split(separator: " ").first.map(String.init)
     }
 
     // MARK: Session lifecycle
@@ -362,6 +369,7 @@ final class AppModel {
             services.analytics.track(.relationshipActivated)
             Haptics.celebration()
             await ensureSession()
+            justPaired = true   // Home shows the "you're connected" celebration
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -377,7 +385,25 @@ final class AppModel {
     // MARK: Today surface
 
     func refreshToday() async {
-        guard let rel = relationship, let user else { return }
+        guard let user else { return }
+
+        // Live pairing detection: re-pull the relationship every refresh so
+        // the creator's phone notices the partner joining (and both phones
+        // stay in sync on XP / love jar / streak).
+        let wasPaired = isPaired
+        if let fresh = try? await services.relationship.currentRelationship(for: user.id) {
+            relationship = fresh
+            if fresh.status == .active, let partnerID = fresh.partnerID(of: user.id) {
+                partnerProfile = try? await services.relationship.profile(for: partnerID)
+                if !wasPaired {
+                    justPaired = true
+                    Haptics.celebration()
+                    services.analytics.track(.relationshipActivated)
+                }
+            }
+        }
+        guard let rel = relationship else { return }
+
         async let question = try? services.questions.todayState(relationship: rel.id, me: user.id)
         async let moods = try? services.mood.latestMoods(relationship: rel.id)
         async let dates = try? services.planner.specialDates(relationship: rel.id)
@@ -387,6 +413,40 @@ final class AppModel {
         publishWidgetSnapshot()
         await NotificationManager.shared.scheduleEventReminders(dates: upcomingDates)
         await syncIncomingWidgetContent()
+        await detectIncomingLove(rel: rel, me: user.id)
+    }
+
+    // MARK: Incoming love (partner's miss-yous / heart taps since last check)
+
+    private static let loveSeenKey = "missuo.love.lastSeenAt"
+
+    /// Set when the partner sent miss-yous / hearts since the last refresh —
+    /// Home plays a full-screen heart burst and clears it.
+    var incomingLove: IncomingLove?
+
+    struct IncomingLove: Equatable {
+        var count: Int
+        var kind: RelationshipEventKind
+    }
+
+    private func detectIncomingLove(rel: Relationship, me: UserID) async {
+        let defaults = UserDefaults.standard
+        guard let lastSeen = defaults.object(forKey: Self.loveSeenKey) as? Date else {
+            // First run: baseline quietly, don't replay history as new love.
+            defaults.set(Date(), forKey: Self.loveSeenKey)
+            return
+        }
+        let events = (try? await services.relationship.recentEvents(relationship: rel.id, limit: 30)) ?? []
+        let fresh = events.filter {
+            $0.actorID != me && $0.occurredAt > lastSeen
+                && ($0.kind == .missYouSent || $0.kind == .heartTap)
+        }
+        defaults.set(Date(), forKey: Self.loveSeenKey)
+        if !fresh.isEmpty {
+            incomingLove = IncomingLove(count: fresh.count,
+                                        kind: fresh.first?.kind ?? .missYouSent)
+            Haptics.heartbeat()
+        }
     }
 
     // MARK: Actions (each one feeds the relationship graph + gamification)
@@ -524,16 +584,16 @@ final class AppModel {
     // MARK: Widgets — shared content (photo + note reach BOTH partners)
 
     /// Publishes a love note to my own widgets (mine slot) AND to my partner
-    /// (via Firestore; a Cloud Function pushes "new note on your widget").
+    /// (via my per-author Firestore doc; a Cloud Function pushes "new note").
     func sendWidgetNote(_ text: String) async {
         WidgetContent.saveNote(text, slot: .mine)
         publishWidgetSnapshot()
         guard let rel = relationship, let me = user else { return }
-        var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
+        var content = (try? await services.relationship.widgetContent(relationship: rel.id, author: me.id)) ?? SharedWidgetContent()
         content.note = text
         content.noteAuthorID = me.id
         content.noteUpdatedAt = .now
-        try? await services.relationship.saveWidgetContent(content, relationship: rel.id)
+        try? await services.relationship.saveWidgetContent(content, relationship: rel.id, author: me.id)
         try? await services.relationship.record(
             event: RelationshipEvent(kind: .widgetNoteSent, actorID: me.id), relationship: rel.id)
     }
@@ -547,27 +607,29 @@ final class AppModel {
         WidgetContent.savePhoto(jpeg, slot: .mine)
         guard let rel = relationship, let me = user else { return }
         Task {
+            // Per-author file name — partners must never overwrite each other.
             guard let path = try? await services.relationship.uploadImage(
-                jpeg, relationship: rel.id, fileName: "widget_photo.jpg") else { return }
-            var content = (try? await services.relationship.widgetContent(relationship: rel.id)) ?? SharedWidgetContent()
+                jpeg, relationship: rel.id, fileName: "widget_photo_\(me.id).jpg") else { return }
+            var content = (try? await services.relationship.widgetContent(relationship: rel.id, author: me.id)) ?? SharedWidgetContent()
             content.photoPath = path
             content.photoAuthorID = me.id
             content.photoUpdatedAt = .now
-            try? await services.relationship.saveWidgetContent(content, relationship: rel.id)
+            try? await services.relationship.saveWidgetContent(content, relationship: rel.id, author: me.id)
             try? await services.relationship.record(
                 event: RelationshipEvent(kind: .widgetPhotoSent, actorID: me.id), relationship: rel.id)
         }
     }
 
     /// Pulls partner-sent widget content onto THIS device (called on refresh
-    /// and when a push wakes the app). Last-writer-wins, only newer content.
+    /// and when a push wakes the app). Reads the PARTNER's per-author doc.
     func syncIncomingWidgetContent() async {
         guard let rel = relationship, let me = user,
-              let content = try? await services.relationship.widgetContent(relationship: rel.id)
+              let partnerID = rel.partnerID(of: me.id),
+              let content = try? await services.relationship.widgetContent(relationship: rel.id, author: partnerID)
         else { return }
         let defaults = AppGroup.defaults
 
-        if let note = content.note, content.noteAuthorID != me.id,
+        if let note = content.note,
            let at = content.noteUpdatedAt,
            at > (defaults.object(forKey: "lovio.widget.note.syncedAt") as? Date ?? .distantPast) {
             WidgetContent.saveNote(note, slot: .partner)
@@ -575,7 +637,7 @@ final class AppModel {
             publishWidgetSnapshot()
         }
 
-        if let path = content.photoPath, content.photoAuthorID != me.id,
+        if let path = content.photoPath,
            let at = content.photoUpdatedAt,
            at > (defaults.object(forKey: "lovio.widget.photo.syncedAt") as? Date ?? .distantPast),
            let data = try? await services.relationship.downloadImage(path: path) {
@@ -630,6 +692,7 @@ final class AppModel {
             lastMemoryDate: nil)
         snapshot.hasAnniversary = rel.anniversary != nil
         snapshot.isPaired = isPaired
+        snapshot.nextAnniversaryDays = rel.daysUntilNextAnniversary
         AppGroup.save(snapshot)
     }
 

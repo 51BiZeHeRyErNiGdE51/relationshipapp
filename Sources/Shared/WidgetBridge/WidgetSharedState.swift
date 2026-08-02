@@ -85,6 +85,8 @@ public struct WidgetSnapshot: Codable, Sendable {
     public var hasAnniversary: Bool?
     /// Nil/false → pairing-focused empty states on partner widgets.
     public var isPaired: Bool?
+    /// Days until the next yearly anniversary (0 = today 🎉).
+    public var nextAnniversaryDays: Int?
 
     public init(myName: String, partnerName: String, myInitials: String, partnerInitials: String,
                 daysTogether: Int, streakDays: Int, loveScore: Int, isPremium: Bool,

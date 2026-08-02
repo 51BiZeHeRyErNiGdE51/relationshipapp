@@ -188,6 +188,13 @@ const SYSTEM_PROMPTS: Record<string, string> = {
     "You suggest date ideas for couples, including virtual dates for " +
     "long-distance couples. Use the couple's context to personalize. Reply " +
     "with exactly 5 ideas, one per line, no numbering, each under 12 words.",
+  weeklyReport:
+    "You write a weekly relationship report for a couple based ONLY on their " +
+    "real context (question answers, agreements/disagreements, moods). Never " +
+    "invent names, events or facts not in the context; refer to them as 'you " +
+    "two' or 'your partner'. Reply with exactly 3 lines, each formatted as " +
+    "'Title | insight' — title under 6 words, insight under 35 words, warm " +
+    "and actionable. No numbering, no extra text.",
 };
 
 export const askCoach = onCall({ secrets: [deepseekKey] }, async (request) => {
