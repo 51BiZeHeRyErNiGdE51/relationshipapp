@@ -92,9 +92,15 @@ final class AppModel {
         self.isDemoMode = isDemoMode
     }
 
+    /// Set by bootstrap() so the AppDelegate can trigger a background sync
+    /// when a silent push arrives (partner sent a photo, heart, message…).
+    static weak var current: AppModel?
+
     static func bootstrap() -> AppModel {
         let hasFirebase = FirebaseBootstrap.configureIfPossible()
-        return AppModel(services: hasFirebase ? .live() : .demo(), isDemoMode: !hasFirebase)
+        let model = AppModel(services: hasFirebase ? .live() : .demo(), isDemoMode: !hasFirebase)
+        current = model
+        return model
     }
 
     // "You" was a literal default written by an old build — treat it as unnamed.
@@ -404,6 +410,8 @@ final class AppModel {
         }
         guard let rel = relationship else { return }
 
+        await syncMyPresence()
+
         async let question = try? services.questions.todayState(relationship: rel.id, me: user.id)
         async let moods = try? services.mood.latestMoods(relationship: rel.id)
         async let dates = try? services.planner.specialDates(relationship: rel.id)
@@ -414,6 +422,56 @@ final class AppModel {
         await NotificationManager.shared.scheduleEventReminders(dates: upcomingDates)
         await syncIncomingWidgetContent()
         await detectIncomingLove(rel: rel, me: user.id)
+    }
+
+    /// Keeps my profile fresh while the app is in use:
+    /// - uploads the FCM push token if Firestore doesn't have it yet
+    ///   (ensureSession runs BEFORE the user grants push permission, so the
+    ///   first token used to sit on-device only → partner pushes never fired)
+    /// - heart-beats `lastActiveAt` (max every 5 min) so the partner's
+    ///   Love Pulse widget can show "you're both here" truthfully.
+    private func syncMyPresence() async {
+        guard var profile = myProfile else { return }
+        var dirty = false
+        if let token = UserDefaults.standard.string(forKey: "lovio.fcm.token"),
+           !profile.fcmTokens.contains(token) {
+            profile.fcmTokens.append(token)
+            dirty = true
+        }
+        if Date.now.timeIntervalSince(profile.lastActiveAt) > 5 * 60 {
+            profile.lastActiveAt = .now
+            dirty = true
+        }
+        guard dirty else { return }
+        try? await services.relationship.updateProfile(profile)
+        myProfile = profile
+    }
+
+    /// Silent-push / notification-tap entry point: pull everything the partner
+    /// changed (photo, note, hearts, pairing) and refresh the widgets without
+    /// the user opening the app.
+    func backgroundSync() async {
+        await drainWidgetOutbox()
+        await refreshToday()
+    }
+
+    // MARK: Meetup log — powers the Hug Meter widget
+
+    /// True when a meetup was already logged today (button shows a checkmark).
+    var meetupLoggedToday: Bool {
+        guard let at = relationship?.lastMeetupAt else { return false }
+        return Calendar.current.isDateInToday(at)
+    }
+
+    func logMeetup() async {
+        guard var rel = relationship, let user else { return }
+        rel.lastMeetupAt = .now
+        relationship = rel
+        publishWidgetSnapshot()
+        Haptics.success()
+        try? await services.relationship.updateGamification(rel)
+        try? await services.relationship.record(
+            event: RelationshipEvent(kind: .meetupLogged, actorID: user.id), relationship: rel.id)
     }
 
     // MARK: Incoming love (partner's miss-yous / heart taps since last check)
@@ -678,7 +736,11 @@ final class AppModel {
             myEnergy: myMood?.energy ?? 0, partnerEnergy: partnerMood?.energy ?? 0,
             partnerBatteryPercent: nil,      // future: partner presence doc
             distanceKilometers: nil,         // future: coarse location sync
-            daysSinceLastMeeting: nil,       // future: meetup log
+            daysSinceLastMeeting: rel.lastMeetupAt.map {
+                max(0, Calendar.current.dateComponents(
+                    [.day], from: Calendar.current.startOfDay(for: $0),
+                    to: Calendar.current.startOfDay(for: .now)).day ?? 0)
+            },
             bothRecentlyActive: isPaired && partnerRecentlyActive,
             nextEventTitle: nextDate?.title,
             nextEventDate: nextDate.map { Calendar.current.date(byAdding: .day, value: $0.daysUntil, to: .now) ?? $0.date },

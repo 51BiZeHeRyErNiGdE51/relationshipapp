@@ -96,6 +96,7 @@ public struct Relationship: Codable, Identifiable, Hashable, Sendable {
     public var createdBy: UserID
     public var inviteCode: InviteCode?
     public var anniversary: Date?           // "together since"
+    public var lastMeetupAt: Date?          // last time they were together (Hug Meter)
     public var createdAt: Date
     public var endedAt: Date?
 
@@ -111,6 +112,7 @@ public struct Relationship: Codable, Identifiable, Hashable, Sendable {
                 createdBy: UserID,
                 inviteCode: InviteCode? = .generate(),
                 anniversary: Date? = nil,
+                lastMeetupAt: Date? = nil,
                 createdAt: Date = .now,
                 endedAt: Date? = nil,
                 streak: Streak = Streak(),
@@ -123,6 +125,7 @@ public struct Relationship: Codable, Identifiable, Hashable, Sendable {
         self.createdBy = createdBy
         self.inviteCode = inviteCode
         self.anniversary = anniversary
+        self.lastMeetupAt = lastMeetupAt
         self.createdAt = createdAt
         self.endedAt = endedAt
         self.streak = streak
@@ -204,6 +207,7 @@ public enum RelationshipEventKind: String, Codable, Sendable {
     case widgetInteraction = "widget_interaction"
     case widgetNoteSent = "widget_note_sent"
     case widgetPhotoSent = "widget_photo_sent"
+    case meetupLogged = "meetup_logged"
     case appOpened = "app_opened"
 }
 

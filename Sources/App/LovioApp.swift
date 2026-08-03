@@ -52,15 +52,38 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
     }
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        // Persisted here; AppModel.ensureSession merges it into
-        // users/{id}.fcmTokens, which Cloud Functions (firebase/functions)
-        // read to deliver partner-event pushes: answered, mood, miss-you.
+        // Persisted here; AppModel merges it into users/{id}.fcmTokens (on
+        // session start AND every refresh — the token often arrives only
+        // after the user grants push permission, which happens well after
+        // ensureSession). Cloud Functions read it to deliver partner pushes.
         UserDefaults.standard.set(fcmToken, forKey: "lovio.fcm.token")
+    }
+
+    /// Partner pushes carry `content-available: 1`, so iOS wakes us here in
+    /// the background — pull the partner's photo/note/hearts onto the widgets
+    /// immediately instead of waiting for the user to open the app.
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        guard let model = AppModel.current else {
+            completionHandler(.noData)
+            return
+        }
+        Task { @MainActor in
+            await model.backgroundSync()
+            completionHandler(.newData)
+        }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound, .badge]
+    }
+
+    /// Tapping a partner notification also syncs right away.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        await AppModel.current?.backgroundSync()
     }
 }
 

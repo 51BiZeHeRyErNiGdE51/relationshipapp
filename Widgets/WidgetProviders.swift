@@ -10,8 +10,8 @@ import WidgetKit
 // service extension in production.
 
 struct SnapshotEntry: TimelineEntry {
-    let date: Date
-    let snapshot: WidgetSnapshot
+    var date: Date
+    var snapshot: WidgetSnapshot
 }
 
 struct SnapshotProvider: TimelineProvider {
@@ -28,10 +28,30 @@ struct SnapshotProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
         let snapshot = AppGroup.loadSnapshot()
-        let entries = (0..<4).map { hour in
-            SnapshotEntry(date: Calendar.current.date(byAdding: .hour, value: hour, to: .now)!,
-                          snapshot: snapshot)
+        var entries: [SnapshotEntry] = [SnapshotEntry(date: .now, snapshot: snapshot)]
+
+        // Presence decays: "you're both here" is only true for ~20 min after
+        // the app last verified it — schedule an entry that flips it off so
+        // Love Pulse never shows a stale heartbeat for hours.
+        if snapshot.bothRecentlyActive {
+            let expiry = snapshot.generatedAt.addingTimeInterval(20 * 60)
+            if expiry > .now {
+                var expired = snapshot
+                expired.bothRecentlyActive = false
+                entries.append(SnapshotEntry(date: expiry, snapshot: expired))
+            } else {
+                entries[0].snapshot.bothRecentlyActive = false
+            }
         }
+
+        for hour in 1..<4 {
+            var future = snapshot
+            future.bothRecentlyActive = false
+            entries.append(SnapshotEntry(
+                date: Calendar.current.date(byAdding: .hour, value: hour, to: .now)!,
+                snapshot: future))
+        }
+        entries.sort { $0.date < $1.date }
         completion(Timeline(entries: entries, policy: .atEnd))
     }
 }

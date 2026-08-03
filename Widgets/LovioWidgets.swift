@@ -390,9 +390,10 @@ struct HugMeterWidget: Widget {
                         .foregroundStyle(.white.opacity(0.75))
                         .multilineTextAlignment(.center)
                 } else {
-                    Text("Log a meetup in Missuo")
+                    Text("Together? Tap 🤗 on Missuo's home screen")
                         .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
                 }
             }
             .lovioWidgetContainer([Lovio.Palette.teal.opacity(0.7), Lovio.Palette.midnight])

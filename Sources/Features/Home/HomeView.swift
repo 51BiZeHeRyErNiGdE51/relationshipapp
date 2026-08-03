@@ -34,6 +34,7 @@ struct HomeView: View {
                 notificationNudgeCard
                 questionCard
                 moodRow
+                hugCard
                 widgetPromoCard
                 companionCard
                 nextEventCard
@@ -496,6 +497,44 @@ struct HomeView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Hug log — feeds the Hug Meter widget ("days since your last hug")
+
+    @ViewBuilder
+    private var hugCard: some View {
+        if model.isPaired {
+            Button {
+                guard !model.meetupLoggedToday else { return }
+                showHeartBurst(HeartBurst(
+                    title: "Hug logged — your Hug Meter is back to day zero 🤗",
+                    emoji: "🤗"))
+                Task { await model.logMeetup() }
+            } label: {
+                GlassCard(tint: Lovio.Palette.teal) {
+                    HStack(spacing: 12) {
+                        Text("🤗").font(.title2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(model.meetupLoggedToday
+                                 ? "Together today — logged!"
+                                 : "Together right now?")
+                                .font(Lovio.Type_.headline)
+                            Text(model.meetupLoggedToday
+                                 ? "Your Hug Meter widgets show day zero on both phones."
+                                 : "Log a hug — it resets the Hug Meter widget for both of you.")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: model.meetupLoggedToday
+                              ? "checkmark.circle.fill" : "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Lovio.Palette.teal)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var partnerMood: MoodEntry? {

@@ -39,8 +39,18 @@ async function push(userID: string, title: string, body: string): Promise<void> 
   await admin.messaging().sendEachForMulticast({
     tokens,
     notification: { title, body },
-    apns: { payload: { aps: { sound: "default" } } },
+    // content-available wakes the partner's app in the background so it can
+    // pull the new photo/note/hearts onto their widgets immediately.
+    apns: { payload: { aps: { sound: "default", contentAvailable: true } } },
   });
+}
+
+/** First name of the actor for personalized pushes ("Eren misses you"). */
+async function nameOf(userID: string): Promise<string> {
+  const doc = await db.collection("users").doc(userID).get();
+  const raw = ((doc.data()?.displayName as string) ?? "").trim();
+  if (!raw || raw === "You") return "Your love";
+  return raw.split(" ")[0];
 }
 
 /** Partner answered the daily question → notify; both answered → unlock push to both. */
@@ -91,20 +101,26 @@ export const onEventCreated = onDocumentCreated(
     const partner = await partnerOf(event.params.relID, data.actorID as string);
     if (!partner) return;
 
+    const name = await nameOf(data.actorID as string);
     switch (data.kind as string) {
       case "miss_you_sent":
-        await push(partner, "Someone misses you 🥺", "Tap to send one back.");
+        await push(partner, `${name} misses you 🥺`, "Tap to send one back.");
         break;
       case "heart_tap":
-        await push(partner, "A heart just landed in your jar ❤️", "Your partner is thinking of you.");
+        await push(partner, `${name} dropped a heart in your love jar ❤️`,
+          "They're thinking of you right now.");
         break;
       case "widget_note_sent":
-        await push(partner, "New note on your widget 💌",
-          "Your partner left something on your home screen. Open Missuo to sync it.");
+        await push(partner, `${name} left a note on your widget 💌`,
+          "It's syncing to your home screen now.");
         break;
       case "widget_photo_sent":
-        await push(partner, "New photo on your widget 📸",
-          "Your partner changed your Polaroid. Open Missuo to see it.");
+        await push(partner, `${name} sent a photo to your widget 📸`,
+          "It's syncing to your Polaroid now.");
+        break;
+      case "meetup_logged":
+        await push(partner, `${name} logged a hug 🤗`,
+          "Your Hug Meter is back to day zero.");
         break;
     }
   });

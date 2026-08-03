@@ -207,6 +207,7 @@ struct WidgetGalleryView: View {
         case .milestoneAdded: "added a milestone"
         case .gamePlayed: "played a game"
         case .dateCompleted, .bucketItemCompleted: "completed a plan"
+        case .meetupLogged: "logged a hug 🤗"
         case .widgetInteraction, .appOpened: nil
         }
     }
