@@ -98,7 +98,8 @@ struct MyPolaroidWidget: Widget {
         }
         .configurationDisplayName("My Polaroid")
         .description("The photo you picked — the same one your partner sees.")
-        .supportedFamilies([.systemSmall, .systemLarge])
+        // Small photo tiles rendered unreliably — large only, by design.
+        .supportedFamilies([.systemLarge])
     }
 }
 
@@ -111,7 +112,7 @@ struct PartnerPolaroidWidget: Widget {
         }
         .configurationDisplayName("From Your Love")
         .description("The photo and note your partner sent you.")
-        .supportedFamilies([.systemSmall, .systemLarge])
+        .supportedFamilies([.systemLarge])
     }
 }
 
@@ -264,9 +265,16 @@ struct NextAdventureWidget: Widget {
                     .lineLimit(2)
                 Spacer(minLength: 0)
                 if let target = entry.snapshot.nextEventDate {
-                    Text(target, style: .relative)
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Lovio.Palette.gold)
+                    if target > .now {
+                        Text(target, style: .relative)
+                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Lovio.Palette.gold)
+                    } else {
+                        // Never count UP after the moment passes.
+                        Text("It's happening! 🎉")
+                            .font(.system(.headline, design: .rounded, weight: .heavy))
+                            .foregroundStyle(Lovio.Palette.gold)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -368,6 +376,45 @@ struct LoveJarWidget: Widget {
         }
         .configurationDisplayName("Love Jar")
         .description("Collect hearts together, one tap at a time.")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+// MARK: - Distance
+
+struct DistanceWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "distance", provider: SnapshotProvider()) { entry in
+            VStack(spacing: 6) {
+                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath.fill")
+                    .font(.title3)
+                    .foregroundStyle(Lovio.Palette.lavender)
+                if let km = entry.snapshot.distanceKilometers {
+                    if km < 1 {
+                        Text("Together 🥰")
+                            .font(.system(.headline, design: .rounded, weight: .heavy))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(km < 100 ? String(format: "%.1f km", km) : "\(Int(km)) km")
+                            .font(.system(size: 30, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                        Text("between your hearts")
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                } else {
+                    Text("Turn on distance in Missuo → Widgets (both phones)")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .lovioWidgetContainer([Lovio.Palette.lavender.opacity(0.75), Lovio.Palette.midnight])
+        }
+        .configurationDisplayName("Distance")
+        .description("How far apart you are — updates when either of you uses Missuo. No background tracking.")
         .supportedFamilies([.systemSmall])
     }
 }

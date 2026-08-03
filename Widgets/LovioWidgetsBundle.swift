@@ -15,6 +15,7 @@ struct LovioWidgetsBundle: WidgetBundle {
         SecretMessageWidget()
         LoveJarWidget()
         HugMeterWidget()
+        DistanceWidget()
         CompanionWidget()
         CountdownLiveActivity()
     }

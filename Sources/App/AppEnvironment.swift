@@ -1,4 +1,5 @@
 import AppTrackingTransparency
+import CoreLocation
 import Foundation
 import SwiftUI
 import UIKit
@@ -442,9 +443,50 @@ final class AppModel {
             profile.lastActiveAt = .now
             dirty = true
         }
+        // Distance widget: ONE coarse fix (~1 km) per presence heartbeat,
+        // only if the user opted in. No continuous tracking — battery cost
+        // is effectively zero.
+        if distanceEnabled,
+           Date.now.timeIntervalSince(profile.locationUpdatedAt ?? .distantPast) > 5 * 60,
+           let coordinate = await OneShotLocation.request() {
+            profile.latitude = (coordinate.latitude * 100).rounded() / 100
+            profile.longitude = (coordinate.longitude * 100).rounded() / 100
+            profile.locationUpdatedAt = .now
+            dirty = true
+        }
         guard dirty else { return }
         try? await services.relationship.updateProfile(profile)
         myProfile = profile
+    }
+
+    // MARK: Distance widget opt-in
+
+    var distanceEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "missuo.location.enabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "missuo.location.enabled") }
+    }
+
+    func enableDistance() async {
+        let manager = CLLocationManager()
+        if manager.authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+            // Give the dialog a moment; the actual fix happens on next refresh.
+            try? await Task.sleep(for: .seconds(1))
+        }
+        distanceEnabled = true
+        await refreshToday()
+    }
+
+    /// Km between the two partners' coarse locations (nil unless both opted
+    /// in and reported within the last 48 h).
+    var distanceKilometers: Double? {
+        guard let myLat = myProfile?.latitude, let myLon = myProfile?.longitude,
+              let pLat = partnerProfile?.latitude, let pLon = partnerProfile?.longitude,
+              let myAt = myProfile?.locationUpdatedAt, let pAt = partnerProfile?.locationUpdatedAt,
+              Date.now.timeIntervalSince(myAt) < 48 * 3600,
+              Date.now.timeIntervalSince(pAt) < 48 * 3600 else { return nil }
+        return CLLocation(latitude: myLat, longitude: myLon)
+            .distance(from: CLLocation(latitude: pLat, longitude: pLon)) / 1000
     }
 
     /// Silent-push / notification-tap entry point: pull everything the partner
@@ -497,7 +539,7 @@ final class AppModel {
         let events = (try? await services.relationship.recentEvents(relationship: rel.id, limit: 30)) ?? []
         let fresh = events.filter {
             $0.actorID != me && $0.occurredAt > lastSeen
-                && ($0.kind == .missYouSent || $0.kind == .heartTap)
+                && ($0.kind == .missYouSent || $0.kind == .heartTap || $0.kind == .hugSent)
         }
         defaults.set(Date(), forKey: Self.loveSeenKey)
         if !fresh.isEmpty {
@@ -548,6 +590,19 @@ final class AppModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// In-app heart: lands in the shared love jar + pushes to the partner.
+    func sendHeart() async {
+        Haptics.heartbeat()
+        await recordEngagement(.heartTap, nurture: 1)
+        publishWidgetSnapshot()   // jar count updates on my widgets instantly
+    }
+
+    /// Virtual hug: pushes "X sent you a hug 🤗" to the partner's phone.
+    func sendHug() async {
+        Haptics.heartbeat()
+        await recordEngagement(.hugSent, nurture: 1)
     }
 
     func sendMissYou(source: String = "app") async {
@@ -695,9 +750,12 @@ final class AppModel {
             publishWidgetSnapshot()
         }
 
+        // Re-download when newer OR when the local file vanished (reinstall,
+        // storage purge) even if we think we already synced this version.
         if let path = content.photoPath,
            let at = content.photoUpdatedAt,
-           at > (defaults.object(forKey: "lovio.widget.photo.syncedAt") as? Date ?? .distantPast),
+           at > (defaults.object(forKey: "lovio.widget.photo.syncedAt") as? Date ?? .distantPast)
+            || !WidgetContent.hasPhoto(.partner),
            let data = try? await services.relationship.downloadImage(path: path) {
             WidgetContent.savePhoto(data, slot: .partner)
             defaults.set(at, forKey: "lovio.widget.photo.syncedAt")
@@ -714,7 +772,8 @@ final class AppModel {
         let partnerID = rel.partnerID(of: user.id)
         let myMood = latestMoods[user.id]
         let partnerMood = partnerID.flatMap { latestMoods[$0] }
-        let nextDate = upcomingDates.first
+        // Only FUTURE plans — a passed date must never count upward forever.
+        let nextDate = upcomingDates.first { $0.daysUntil >= 0 }
 
         // "Both online" = paired and the partner was active in the last 15 min.
         let partnerRecentlyActive = (partnerProfile?.lastActiveAt).map {
@@ -735,7 +794,7 @@ final class AppModel {
             myMood: myMood?.mood.emoji, partnerMood: partnerMood?.mood.emoji,
             myEnergy: myMood?.energy ?? 0, partnerEnergy: partnerMood?.energy ?? 0,
             partnerBatteryPercent: nil,      // future: partner presence doc
-            distanceKilometers: nil,         // future: coarse location sync
+            distanceKilometers: distanceKilometers,
             daysSinceLastMeeting: rel.lastMeetupAt.map {
                 max(0, Calendar.current.dateComponents(
                     [.day], from: Calendar.current.startOfDay(for: $0),
@@ -768,6 +827,49 @@ final class AppModel {
             default: break
             }
         }
+    }
+}
+
+// MARK: - One-shot coarse location (Distance widget)
+//
+// A single reduced-accuracy fix per request — no monitoring, no background
+// tracking, effectively zero battery. Returns nil on denial/timeouts.
+
+final class OneShotLocation: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+
+    static func request() async -> CLLocationCoordinate2D? {
+        let helper = OneShotLocation()
+        let status = helper.manager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return nil }
+        return await withCheckedContinuation { continuation in
+            helper.continuation = continuation
+            helper.manager.desiredAccuracy = kCLLocationAccuracyKilometer
+            helper.manager.requestLocation()
+            // Safety timeout so a stuck fix never hangs a refresh.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                helper.finish(nil)
+            }
+        }
+    }
+
+    private func finish(_ coordinate: CLLocationCoordinate2D?) {
+        continuation?.resume(returning: coordinate)
+        continuation = nil
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        finish(locations.first?.coordinate)
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        finish(nil)
+    }
+
+    override init() {
+        super.init()
+        manager.delegate = self
     }
 }
 

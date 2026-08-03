@@ -110,6 +110,10 @@ export const onEventCreated = onDocumentCreated(
         await push(partner, `${name} dropped a heart in your love jar ❤️`,
           "They're thinking of you right now.");
         break;
+      case "hug_sent":
+        await push(partner, `${name} sent you a hug 🤗`,
+          "Wrap it around yourself.");
+        break;
       case "widget_note_sent":
         await push(partner, `${name} left a note on your widget 💌`,
           "It's syncing to your home screen now.");

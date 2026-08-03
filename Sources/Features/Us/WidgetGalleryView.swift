@@ -38,6 +38,7 @@ struct WidgetGalleryView: View {
         .init(id: "secret_message", title: "Secret Message", subtitle: "Blurred note — tap to reveal", symbol: "envelope.badge.shield.half.filled.fill", tint: Lovio.Palette.plum, isPremium: true),
         .init(id: "love_jar", title: "Love Jar", subtitle: "Collect hearts together", symbol: "cylinder.split.1x2.fill", tint: Lovio.Palette.gold, isPremium: true),
         .init(id: "hug_meter", title: "Hug Meter", subtitle: "Days since you last met", symbol: "figure.2.arms.open", tint: Lovio.Palette.teal, isPremium: true),
+        .init(id: "distance", title: "Distance", subtitle: "Km between your hearts — no tracking", symbol: "point.topleft.down.to.point.bottomright.curvepath.fill", tint: Lovio.Palette.lavender, isPremium: true),
         .init(id: "companion", title: "Companion", subtitle: "Your shared world, growing daily", symbol: "camera.macro", tint: Lovio.Palette.teal, isPremium: true),
     ]
 
@@ -46,6 +47,7 @@ struct WidgetGalleryView: View {
             VStack(spacing: 16) {
                 sendPhotoCard
                 sendNoteCard
+                distanceCard
 
                 GlassCard(tint: Lovio.Palette.lavender) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -161,6 +163,47 @@ struct WidgetGalleryView: View {
         events = all.filter { Self.eventText($0.kind) != nil }
     }
 
+    // MARK: Distance widget opt-in (one coarse fix per app use, no tracking)
+
+    @ViewBuilder
+    private var distanceCard: some View {
+        if model.distanceEnabled {
+            GlassCard(tint: Lovio.Palette.lavender) {
+                HStack(spacing: 10) {
+                    Image(systemName: "location.fill")
+                        .foregroundStyle(Lovio.Palette.lavender)
+                    Text(model.distanceKilometers.map {
+                        $0 < 1 ? "You're in the same place 🥰"
+                               : String(format: "%.0f km between your hearts", $0)
+                    } ?? "Distance is on — it shows once \(model.partnerFirstName ?? "your partner") turns it on too.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+        } else {
+            Button { Task { await model.enableDistance() } } label: {
+                GlassCard(tint: Lovio.Palette.lavender) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "point.topleft.down.to.point.bottomright.curvepath.fill")
+                            .font(.title3)
+                            .foregroundStyle(Lovio.Palette.lavender)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Turn on the Distance widget")
+                                .font(Lovio.Type_.headline)
+                            Text("One rough location (~1 km) each time you use the app — never in the background, zero battery cost.")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: Between you two — history of what was sent back and forth
 
     @ViewBuilder
@@ -207,7 +250,8 @@ struct WidgetGalleryView: View {
         case .milestoneAdded: "added a milestone"
         case .gamePlayed: "played a game"
         case .dateCompleted, .bucketItemCompleted: "completed a plan"
-        case .meetupLogged: "logged a hug 🤗"
+        case .hugSent: "sent a hug 🤗"
+        case .meetupLogged: "logged a meetup 🤗"
         case .widgetInteraction, .appOpened: nil
         }
     }

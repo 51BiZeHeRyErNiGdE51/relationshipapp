@@ -40,11 +40,18 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var lastActiveAt: Date
     public var fcmTokens: [String]
     public var loveLanguage: LoveLanguage?
+    /// Coarse location (~1 km, rounded) for the Distance widget. Captured
+    /// only while the app is in use and only if the user opted in.
+    public var latitude: Double?
+    public var longitude: Double?
+    public var locationUpdatedAt: Date?
 
     public init(id: UserID, displayName: String, avatarURL: URL? = nil,
                 birthday: Date? = nil, lastSeenPlatform: String = "ios",
                 lastActiveAt: Date = .now, fcmTokens: [String] = [],
-                loveLanguage: LoveLanguage? = nil) {
+                loveLanguage: LoveLanguage? = nil,
+                latitude: Double? = nil, longitude: Double? = nil,
+                locationUpdatedAt: Date? = nil) {
         self.id = id
         self.displayName = displayName
         self.avatarURL = avatarURL
@@ -53,6 +60,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.lastActiveAt = lastActiveAt
         self.fcmTokens = fcmTokens
         self.loveLanguage = loveLanguage
+        self.latitude = latitude
+        self.longitude = longitude
+        self.locationUpdatedAt = locationUpdatedAt
     }
 
     public var initials: String {
@@ -200,6 +210,7 @@ public enum RelationshipEventKind: String, Codable, Sendable {
     case moodLogged = "mood_logged"
     case missYouSent = "miss_you_sent"
     case heartTap = "heart_tap"
+    case hugSent = "hug_sent"
     case dateCompleted = "date_completed"
     case bucketItemCompleted = "bucket_item_completed"
     case gamePlayed = "game_played"

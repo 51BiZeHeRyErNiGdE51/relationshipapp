@@ -33,6 +33,7 @@ struct HomeView: View {
                 anniversaryCard
                 notificationNudgeCard
                 questionCard
+                sendLoveRow
                 moodRow
                 hugCard
                 widgetPromoCard
@@ -77,11 +78,20 @@ struct HomeView: View {
         .onChange(of: model.incomingLove) { _, love in
             guard let love else { return }
             let who = model.partnerFirstName ?? "Your love"
-            showHeartBurst(HeartBurst(
-                title: love.kind == .heartTap
-                    ? "\(who) dropped \(love.count == 1 ? "a heart" : "\(love.count) hearts") in your jar"
-                    : "\(who) misses you\(love.count > 1 ? " ×\(love.count)" : "") 🥺",
-                emoji: love.kind == .heartTap ? "💛" : "💌"))
+            let title: String
+            let emoji: String
+            switch love.kind {
+            case .heartTap:
+                title = "\(who) dropped \(love.count == 1 ? "a heart" : "\(love.count) hearts") in your jar"
+                emoji = "💛"
+            case .hugSent:
+                title = "\(who) sent you a hug\(love.count > 1 ? " ×\(love.count)" : "") 🤗"
+                emoji = "🤗"
+            default:
+                title = "\(who) misses you\(love.count > 1 ? " ×\(love.count)" : "") 🥺"
+                emoji = "💌"
+            }
+            showHeartBurst(HeartBurst(title: title, emoji: emoji))
             model.incomingLove = nil
         }
         .refreshable { await model.refreshToday() }
@@ -494,6 +504,42 @@ struct HomeView: View {
                         .font(.title2)
                         .foregroundStyle(Lovio.Palette.teal)
                 }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Send love — hearts to the jar, hugs to their phone
+
+    @ViewBuilder
+    private var sendLoveRow: some View {
+        if model.isPaired {
+            HStack(spacing: 12) {
+                sendLoveButton(emoji: "💗", label: "Send a heart",
+                               burstTitle: "A heart landed in your love jar 💗") {
+                    await model.sendHeart()
+                }
+                sendLoveButton(emoji: "🤗", label: "Send a hug",
+                               burstTitle: "Hug sent — \(model.partnerFirstName ?? "your love") feels it 🤗") {
+                    await model.sendHug()
+                }
+            }
+        }
+    }
+
+    private func sendLoveButton(emoji: String, label: String, burstTitle: String,
+                                action: @escaping () async -> Void) -> some View {
+        Button {
+            showHeartBurst(HeartBurst(title: burstTitle, emoji: emoji))
+            Task { await action() }
+        } label: {
+            GlassCard(tint: Lovio.Palette.rose) {
+                VStack(spacing: 6) {
+                    Text(emoji).font(.title2)
+                    Text(label)
+                        .font(Lovio.Type_.caption.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
             }
         }
         .buttonStyle(.plain)
