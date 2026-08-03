@@ -66,33 +66,12 @@ struct HomeView: View {
         } message: {
             Text("Streak — days in a row you've both shown up (answers, moods, hearts).\n\nLove score — a 0–100 health score that rises with every shared action and gently drifts down when things go quiet.\n\nLevel — grows with everything you two do together; it never goes down.")
         }
+        // Incoming love bursts are handled at MainTabView so they show on
+        // every tab (not only Home). Local send bursts still play here.
         .overlay {
-            if model.justPaired {
-                PairedCelebrationView(partnerName: model.partnerFirstName ?? "your love") {
-                    model.justPaired = false
-                }
-            } else if let burst = heartBurst {
+            if let burst = heartBurst {
                 HeartBurstView(burst: burst)
             }
-        }
-        .onChange(of: model.incomingLove) { _, love in
-            guard let love else { return }
-            let who = model.partnerFirstName ?? "Your love"
-            let title: String
-            let emoji: String
-            switch love.kind {
-            case .heartTap:
-                title = "\(who) dropped \(love.count == 1 ? "a heart" : "\(love.count) hearts") in your jar"
-                emoji = "💛"
-            case .hugSent:
-                title = "\(who) sent you a hug\(love.count > 1 ? " ×\(love.count)" : "") 🤗"
-                emoji = "🤗"
-            default:
-                title = "\(who) misses you\(love.count > 1 ? " ×\(love.count)" : "") 🥺"
-                emoji = "💌"
-            }
-            showHeartBurst(HeartBurst(title: title, emoji: emoji))
-            model.incomingLove = nil
         }
         .refreshable { await model.refreshToday() }
     }
@@ -765,23 +744,31 @@ struct PairedCelebrationView: View {
 
 struct HeartBurstView: View {
     let burst: HomeView.HeartBurst
+    @State private var showBanner = false
 
     var body: some View {
         ZStack {
-            FloatingHearts(emoji: burst.emoji, count: 10)
+            Color.black.opacity(0.18).ignoresSafeArea()
+            FloatingHearts(emoji: burst.emoji, count: 14)
             VStack {
                 Spacer()
                 Text(burst.title)
                     .font(Lovio.Type_.headline)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 14)
                     .background(Capsule().fill(.ultraThinMaterial))
-                    .padding(.bottom, 60)
+                    .scaleEffect(showBanner ? 1 : 0.7)
+                    .opacity(showBanner ? 1 : 0)
+                    .padding(.bottom, 90)
             }
         }
         .allowsHitTesting(false)
         .transition(.opacity)
+        .onAppear {
+            withAnimation(.bouncy(duration: 0.45)) { showBanner = true }
+        }
     }
 }
 
@@ -793,21 +780,25 @@ struct FloatingHearts: View {
 
     var body: some View {
         GeometryReader { geo in
+            let height = max(geo.size.height, 1)
+            let width = max(geo.size.width, 1)
             ForEach(0..<count, id: \.self) { i in
                 let x = CGFloat.random(in: 0.08...0.92, seeded: i)
-                let delay = Double(i) * 0.12
-                let size = CGFloat.random(in: 26...46, seeded: i + 100)
+                let delay = Double(i) * 0.1
+                let size = CGFloat.random(in: 28...52, seeded: i + 100)
                 Text(emoji)
                     .font(.system(size: size))
-                    .position(x: geo.size.width * x,
-                              y: rise ? -60 : geo.size.height + 60)
+                    .position(x: width * x, y: rise ? -80 : height + 40)
                     .opacity(rise ? 0 : 1)
-                    .animation(.easeOut(duration: 2.2).delay(delay), value: rise)
+                    .animation(.easeOut(duration: 2.4).delay(delay), value: rise)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-        .onAppear { rise = true }
+        .onAppear {
+            // Next run-loop so the starting position paints before we animate.
+            DispatchQueue.main.async { rise = true }
+        }
     }
 }
 

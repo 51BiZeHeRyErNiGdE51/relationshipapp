@@ -434,10 +434,13 @@ final class AppModel {
     private func syncMyPresence() async {
         guard var profile = myProfile else { return }
         var dirty = false
-        if let token = UserDefaults.standard.string(forKey: "lovio.fcm.token"),
-           !profile.fcmTokens.contains(token) {
-            profile.fcmTokens.append(token)
-            dirty = true
+        if let token = UserDefaults.standard.string(forKey: "lovio.fcm.token") {
+            // Keep only the latest token — stale tokens from deleted installs
+            // poison multicast sends and hide real delivery failures.
+            if profile.fcmTokens != [token] {
+                profile.fcmTokens = [token]
+                dirty = true
+            }
         }
         if Date.now.timeIntervalSince(profile.lastActiveAt) > 5 * 60 {
             profile.lastActiveAt = .now
@@ -467,13 +470,18 @@ final class AppModel {
     }
 
     func enableDistance() async {
-        let manager = CLLocationManager()
-        if manager.authorizationStatus == .notDetermined {
-            manager.requestWhenInUseAuthorization()
-            // Give the dialog a moment; the actual fix happens on next refresh.
-            try? await Task.sleep(for: .seconds(1))
+        let status = CLLocationManager().authorizationStatus
+        if status == .notDetermined {
+            // Must use a retained manager — throwaway managers never finish the dialog.
+            OneShotLocation.requestPermission()
+            try? await Task.sleep(for: .seconds(2))
         }
         distanceEnabled = true
+        // Force a location write on the next presence sync (ignore 5‑min throttle).
+        if var profile = myProfile {
+            profile.locationUpdatedAt = .distantPast
+            myProfile = profile
+        }
         await refreshToday()
     }
 
@@ -543,9 +551,26 @@ final class AppModel {
         }
         defaults.set(Date(), forKey: Self.loveSeenKey)
         if !fresh.isEmpty {
-            incomingLove = IncomingLove(count: fresh.count,
-                                        kind: fresh.first?.kind ?? .missYouSent)
+            let kind = fresh.first?.kind ?? .missYouSent
+            incomingLove = IncomingLove(count: fresh.count, kind: kind)
             Haptics.heartbeat()
+            // Local banner as a safety net while APNs is being configured —
+            // still shows when the app is open/backgrounded and we detect love.
+            let who = partnerFirstName ?? "Your love"
+            let title: String
+            let body: String
+            switch kind {
+            case .heartTap:
+                title = "\(who) dropped a heart in your jar ❤️"
+                body = "They're thinking of you right now."
+            case .hugSent:
+                title = "\(who) sent you a hug 🤗"
+                body = "Wrap it around yourself."
+            default:
+                title = "\(who) misses you 🥺"
+                body = "Tap to send one back."
+            }
+            await NotificationManager.shared.postLocal(title: title, body: body)
         }
     }
 
@@ -834,29 +859,54 @@ final class AppModel {
 //
 // A single reduced-accuracy fix per request — no monitoring, no background
 // tracking, effectively zero battery. Returns nil on denial/timeouts.
+//
+// IMPORTANT: CLLocationManager.delegate is weak. The helper MUST be retained
+// for the duration of the request or the callback never fires (this is why
+// Distance stayed empty even after both partners "allowed" location).
 
 final class OneShotLocation: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+    /// Keeps the helper alive while waiting for Core Location (delegate is weak).
+    private static var inflight: OneShotLocation?
 
     static func request() async -> CLLocationCoordinate2D? {
+        // Serialize: one fix at a time.
+        if inflight != nil { return nil }
         let helper = OneShotLocation()
+        inflight = helper
         let status = helper.manager.authorizationStatus
-        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return nil }
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+            inflight = nil
+            return nil
+        }
         return await withCheckedContinuation { continuation in
             helper.continuation = continuation
             helper.manager.desiredAccuracy = kCLLocationAccuracyKilometer
+            helper.manager.distanceFilter = kCLDistanceFilterNone
             helper.manager.requestLocation()
-            // Safety timeout so a stuck fix never hangs a refresh.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
                 helper.finish(nil)
             }
         }
     }
 
+    /// Ask for When-In-Use permission from a retained manager (a throwaway
+    /// CLLocationManager dies before the system dialog can complete).
+    static func requestPermission() {
+        let helper = OneShotLocation()
+        inflight = helper
+        helper.manager.requestWhenInUseAuthorization()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+            if inflight === helper { inflight = nil }
+        }
+    }
+
     private func finish(_ coordinate: CLLocationCoordinate2D?) {
+        guard continuation != nil else { return }
         continuation?.resume(returning: coordinate)
         continuation = nil
+        if Self.inflight === self { Self.inflight = nil }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -865,6 +915,10 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         finish(nil)
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        // Permission dialog answered — a follow-up refresh will request the fix.
     }
 
     override init() {

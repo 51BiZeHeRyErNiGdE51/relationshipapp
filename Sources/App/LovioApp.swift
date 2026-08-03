@@ -116,6 +116,23 @@ final class NotificationManager {
         await applyDailyReminder(defaultHour: reminderHour)
     }
 
+    /// Immediate local banner (partner hug / miss-you / heart) — used when we
+    /// detect an event in-app, and as a fallback until remote APNs is solid.
+    func postLocal(title: String, body: String) async {
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "love_\(UUID().uuidString)",
+            content: content,
+            trigger: nil) // deliver immediately
+        try? await center.add(request)
+    }
+
     /// Daily question reminder — the single most important retention push.
     /// Time defaults to the remote-config experiment; the user's own choice
     /// in Settings always wins.

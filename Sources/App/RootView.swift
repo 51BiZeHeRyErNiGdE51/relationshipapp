@@ -61,6 +61,7 @@ struct RootView: View {
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var showPaywall = false
+    @State private var loveBurst: HomeView.HeartBurst?
 
     var body: some View {
         TabView {
@@ -81,6 +82,40 @@ struct MainTabView: View {
                 .tabItem { Label("Us", systemImage: "person.2.fill") }
         }
         .tint(Lovio.Palette.rose)
+        // Global love burst — lives above every tab so a hug/miss-you
+        // still animates even when you're not on the Home screen.
+        .overlay {
+            if model.justPaired {
+                PairedCelebrationView(partnerName: model.partnerFirstName ?? "your love") {
+                    model.justPaired = false
+                }
+            } else if let burst = loveBurst {
+                HeartBurstView(burst: burst)
+            }
+        }
+        .onChange(of: model.incomingLove) { _, love in
+            guard let love else { return }
+            let who = model.partnerFirstName ?? "Your love"
+            let title: String
+            let emoji: String
+            switch love.kind {
+            case .heartTap:
+                title = "\(who) dropped \(love.count == 1 ? "a heart" : "\(love.count) hearts") in your jar"
+                emoji = "💛"
+            case .hugSent:
+                title = "\(who) sent you a hug\(love.count > 1 ? " ×\(love.count)" : "") 🤗"
+                emoji = "🤗"
+            default:
+                title = "\(who) misses you\(love.count > 1 ? " ×\(love.count)" : "") 🥺"
+                emoji = "💌"
+            }
+            withAnimation(.smooth) { loveBurst = HomeView.HeartBurst(title: title, emoji: emoji) }
+            model.incomingLove = nil
+            Task {
+                try? await Task.sleep(for: .seconds(2.8))
+                withAnimation(.smooth) { loveBurst = nil }
+            }
+        }
         .sheet(isPresented: $showPaywall) {
             PaywallView(source: "session_start")
         }

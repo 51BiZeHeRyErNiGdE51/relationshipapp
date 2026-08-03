@@ -35,14 +35,35 @@ async function partnerOf(relID: string, actorID: string): Promise<string | null>
 
 async function push(userID: string, title: string, body: string): Promise<void> {
   const tokens = await tokensFor(userID);
-  if (tokens.length === 0) return;
-  await admin.messaging().sendEachForMulticast({
+  if (tokens.length === 0) {
+    console.warn(`push: no FCM tokens for user ${userID}`);
+    return;
+  }
+  const result = await admin.messaging().sendEachForMulticast({
     tokens,
     notification: { title, body },
     // content-available wakes the partner's app in the background so it can
     // pull the new photo/note/hearts onto their widgets immediately.
-    apns: { payload: { aps: { sound: "default", contentAvailable: true } } },
+    apns: {
+      headers: { "apns-priority": "10" },
+      payload: { aps: { sound: "default", contentAvailable: true, badge: 1 } },
+    },
   });
+  console.log(`push → ${userID}: success=${result.successCount} failure=${result.failureCount} title="${title}"`);
+  result.responses.forEach((r, i) => {
+    if (!r.success) {
+      console.error(`push fail token…${tokens[i].slice(-8)}: ${r.error?.code} ${r.error?.message}`);
+    }
+  });
+  // Drop dead tokens so future sends aren't poisoned.
+  const dead = result.responses
+    .map((r, i) => (!r.success && /registration-token-not-registered|invalid-registration-token/i.test(r.error?.code ?? "") ? tokens[i] : null))
+    .filter(Boolean) as string[];
+  if (dead.length) {
+    const remaining = tokens.filter((t) => !dead.includes(t));
+    await db.collection("users").doc(userID).update({ fcmTokens: remaining });
+    console.log(`pruned ${dead.length} dead token(s) for ${userID}`);
+  }
 }
 
 /** First name of the actor for personalized pushes ("Eren misses you"). */
