@@ -46,9 +46,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
 
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        if FirebaseBootstrap.isConfigured {
-            Messaging.messaging().apnsToken = deviceToken
-        }
+        guard FirebaseBootstrap.isConfigured else { return }
+        // Swizzling is OFF (FirebaseAppDelegateProxyEnabled=false) — we MUST
+        // tell FCM the APNs token AND the environment. Wrong type → Apple
+        // rejects sends even when the .p8 key looks correct in Firebase.
+        #if DEBUG
+        Messaging.messaging().setAPNSToken(deviceToken, type: .sandbox)
+        #else
+        Messaging.messaging().setAPNSToken(deviceToken, type: .prod)
+        #endif
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("APNs registration failed: \(error.localizedDescription)")
     }
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
@@ -61,11 +72,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
         Task { @MainActor in
             await AppModel.current?.backgroundSync()
         }
-    }
-
-    func application(_ application: UIApplication,
-                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        print("APNs registration failed: \(error.localizedDescription)")
     }
 
     /// Alert + content-available pushes wake us here (even from background)
