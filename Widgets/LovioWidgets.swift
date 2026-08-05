@@ -264,17 +264,24 @@ struct NextAdventureWidget: Widget {
                     .foregroundStyle(.white)
                     .lineLimit(2)
                 Spacer(minLength: 0)
-                if let target = entry.snapshot.nextEventDate {
-                    if target > .now {
-                        Text(target, style: .relative)
-                            .font(.system(size: 22, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Lovio.Palette.gold)
-                    } else {
-                        // Never count UP after the moment passes.
-                        Text("It's happening! 🎉")
-                            .font(.system(.headline, design: .rounded, weight: .heavy))
-                            .foregroundStyle(Lovio.Palette.gold)
+                if let target = entry.snapshot.nextEventDate,
+                   target >= Calendar.current.startOfDay(for: .now) {
+                    Group {
+                        if Calendar.current.isDateInToday(target) {
+                            Text("Today 🎉")
+                        } else {
+                            Text(target, style: .relative)
+                        }
                     }
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Lovio.Palette.gold)
+                    Text(target.formatted(.dateTime.day().month(.abbreviated)))
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.7))
+                } else {
+                    Text("Add a plan in Missuo → Us → Plans")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.75))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

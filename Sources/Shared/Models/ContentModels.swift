@@ -278,18 +278,32 @@ public struct SpecialDate: Codable, Identifiable, Hashable, Sendable {
         self.createdBy = createdBy
     }
 
-    /// Days until the next occurrence (handles yearly repeats).
-    public var daysUntil: Int {
+    /// Next calendar occurrence (yearly repeats roll forward; one-offs stay put).
+    public var nextOccurrence: Date {
         let cal = Calendar.current
-        var target = date
         if repeatsYearly {
             var comps = cal.dateComponents([.month, .day], from: date)
-            comps.hour = 0
-            target = cal.nextDate(after: cal.startOfDay(for: .now).addingTimeInterval(-1),
-                                  matching: comps, matchingPolicy: .nextTime) ?? date
+            comps.hour = 12
+            return cal.nextDate(after: cal.startOfDay(for: .now).addingTimeInterval(-1),
+                                matching: comps, matchingPolicy: .nextTime) ?? date
         }
-        return max(0, cal.dateComponents([.day], from: cal.startOfDay(for: .now),
-                                         to: cal.startOfDay(for: target)).day ?? 0)
+        return date
+    }
+
+    /// Days until the next occurrence. Negative = already passed (one-off).
+    public var daysUntil: Int {
+        let cal = Calendar.current
+        return cal.dateComponents([.day],
+                                  from: cal.startOfDay(for: .now),
+                                  to: cal.startOfDay(for: nextOccurrence)).day ?? 0
+    }
+
+    /// True when the next occurrence is today or in the future.
+    public var isUpcoming: Bool { daysUntil >= 0 }
+
+    /// Short calendar label, e.g. "18 Aug".
+    public var shortDateLabel: String {
+        nextOccurrence.formatted(.dateTime.day().month(.abbreviated))
     }
 }
 

@@ -5,7 +5,8 @@
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions --project lovio-18416 && node ../scripts/fix-invokers.mjs",
+    "fix-invokers": "node ../scripts/fix-invokers.mjs"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

@@ -437,7 +437,15 @@ struct FirestorePlannerService: PlannerService {
     func specialDates(relationship: RelationshipID) async throws -> [SpecialDate] {
         try await col(relationship, "dates").getDocuments().documents
             .compactMap { try? $0.data(as: SpecialDate.self) }
-            .sorted { $0.daysUntil < $1.daysUntil }
+            // Upcoming first (soonest), then past (most recent).
+            .sorted {
+                switch ($0.isUpcoming, $1.isUpcoming) {
+                case (true, false): return true
+                case (false, true): return false
+                case (true, true): return $0.daysUntil < $1.daysUntil
+                case (false, false): return $0.daysUntil > $1.daysUntil
+                }
+            }
     }
     func save(_ date: SpecialDate, relationship: RelationshipID) async throws {
         try col(relationship, "dates").document(date.id).setData(from: date)

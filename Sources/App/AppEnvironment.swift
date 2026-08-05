@@ -202,7 +202,14 @@ final class AppModel {
             await NotificationManager.shared.requestPermissionsAndSchedule(
                 reminderHour: Int(services.experiments.variant(for: "daily_reminder_hour")) ?? 20)
         }
+        // Critical: register with APNs AFTER the user grants permission so
+        // Firebase gets a real device token (not a ghost from launch-time).
+        await MainActor.run {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
         await refreshNotificationStatus()
+        // Push the FCM token to Firestore immediately.
+        await syncMyPresence()
     }
 
     func refreshNotificationStatus() async {
@@ -470,19 +477,28 @@ final class AppModel {
     }
 
     func enableDistance() async {
-        let status = CLLocationManager().authorizationStatus
-        if status == .notDetermined {
-            // Must use a retained manager — throwaway managers never finish the dialog.
-            OneShotLocation.requestPermission()
-            try? await Task.sleep(for: .seconds(2))
-        }
         distanceEnabled = true
-        // Force a location write on the next presence sync (ignore 5‑min throttle).
+        let status = await OneShotLocation.requestPermissionIfNeeded()
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+            errorMessage = "Location permission is off — turn it on in Settings → Missuo → Location, then try again."
+            return
+        }
+        // Force an immediate fix (ignore the 5‑minute throttle).
         if var profile = myProfile {
             profile.locationUpdatedAt = .distantPast
             myProfile = profile
         }
-        await refreshToday()
+        await syncMyPresence()
+        // Re-pull partner so distance can compute once both sides have coords.
+        if let me = user, let partnerID = relationship?.partnerID(of: me.id) {
+            partnerProfile = try? await services.relationship.profile(for: partnerID)
+        }
+        publishWidgetSnapshot()
+        if distanceKilometers == nil {
+            errorMessage = partnerProfile?.latitude == nil
+                ? "Your location is saved — \(partnerFirstName ?? "your partner") still needs to turn Distance on in Widgets."
+                : "Couldn't read GPS yet — open Missuo again in a minute."
+        }
     }
 
     /// Km between the two partners' coarse locations (nil unless both opted
@@ -551,26 +567,12 @@ final class AppModel {
         }
         defaults.set(Date(), forKey: Self.loveSeenKey)
         if !fresh.isEmpty {
-            let kind = fresh.first?.kind ?? .missYouSent
-            incomingLove = IncomingLove(count: fresh.count, kind: kind)
+            // Animation only — the lock-screen banner must come from a real
+            // remote APNs push (Cloud Function). Local banners here made it
+            // look like "notifications work" only when the app was opened.
+            incomingLove = IncomingLove(count: fresh.count,
+                                        kind: fresh.first?.kind ?? .missYouSent)
             Haptics.heartbeat()
-            // Local banner as a safety net while APNs is being configured —
-            // still shows when the app is open/backgrounded and we detect love.
-            let who = partnerFirstName ?? "Your love"
-            let title: String
-            let body: String
-            switch kind {
-            case .heartTap:
-                title = "\(who) dropped a heart in your jar ❤️"
-                body = "They're thinking of you right now."
-            case .hugSent:
-                title = "\(who) sent you a hug 🤗"
-                body = "Wrap it around yourself."
-            default:
-                title = "\(who) misses you 🥺"
-                body = "Tap to send one back."
-            }
-            await NotificationManager.shared.postLocal(title: title, body: body)
         }
     }
 
@@ -797,8 +799,11 @@ final class AppModel {
         let partnerID = rel.partnerID(of: user.id)
         let myMood = latestMoods[user.id]
         let partnerMood = partnerID.flatMap { latestMoods[$0] }
-        // Only FUTURE plans — a passed date must never count upward forever.
-        let nextDate = upcomingDates.first { $0.daysUntil >= 0 }
+        // Only upcoming / today — past one-offs must never stick as "happening".
+        let nextDate = upcomingDates
+            .filter(\.isUpcoming)
+            .sorted { $0.daysUntil < $1.daysUntil }
+            .first
 
         // "Both online" = paired and the partner was active in the last 15 min.
         let partnerRecentlyActive = (partnerProfile?.lastActiveAt).map {
@@ -827,7 +832,7 @@ final class AppModel {
             },
             bothRecentlyActive: isPaired && partnerRecentlyActive,
             nextEventTitle: nextDate?.title,
-            nextEventDate: nextDate.map { Calendar.current.date(byAdding: .day, value: $0.daysUntil, to: .now) ?? $0.date },
+            nextEventDate: nextDate?.nextOccurrence,
             latestNote: WidgetContent.note(.partner),
             missYouCountToday: MissYouCounter.today(),
             heartsInJar: rel.xp / 4,
@@ -866,12 +871,12 @@ final class AppModel {
 
 final class OneShotLocation: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
-    private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+    private var locationContinuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+    private var authContinuation: CheckedContinuation<CLAuthorizationStatus, Never>?
     /// Keeps the helper alive while waiting for Core Location (delegate is weak).
     private static var inflight: OneShotLocation?
 
     static func request() async -> CLLocationCoordinate2D? {
-        // Serialize: one fix at a time.
         if inflight != nil { return nil }
         let helper = OneShotLocation()
         inflight = helper
@@ -881,44 +886,60 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
             return nil
         }
         return await withCheckedContinuation { continuation in
-            helper.continuation = continuation
+            helper.locationContinuation = continuation
             helper.manager.desiredAccuracy = kCLLocationAccuracyKilometer
-            helper.manager.distanceFilter = kCLDistanceFilterNone
             helper.manager.requestLocation()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
-                helper.finish(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                helper.finishLocation(nil)
             }
         }
     }
 
-    /// Ask for When-In-Use permission from a retained manager (a throwaway
-    /// CLLocationManager dies before the system dialog can complete).
-    static func requestPermission() {
+    /// Shows the system dialog if needed and waits for the user's answer.
+    static func requestPermissionIfNeeded() async -> CLAuthorizationStatus {
         let helper = OneShotLocation()
         inflight = helper
-        helper.manager.requestWhenInUseAuthorization()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
-            if inflight === helper { inflight = nil }
+        let status = helper.manager.authorizationStatus
+        if status != .notDetermined {
+            inflight = nil
+            return status
+        }
+        return await withCheckedContinuation { continuation in
+            helper.authContinuation = continuation
+            helper.manager.requestWhenInUseAuthorization()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+                helper.finishAuth(helper.manager.authorizationStatus)
+            }
         }
     }
 
-    private func finish(_ coordinate: CLLocationCoordinate2D?) {
-        guard continuation != nil else { return }
-        continuation?.resume(returning: coordinate)
-        continuation = nil
+    private func finishLocation(_ coordinate: CLLocationCoordinate2D?) {
+        guard locationContinuation != nil else { return }
+        locationContinuation?.resume(returning: coordinate)
+        locationContinuation = nil
+        if Self.inflight === self { Self.inflight = nil }
+    }
+
+    private func finishAuth(_ status: CLAuthorizationStatus) {
+        guard authContinuation != nil else { return }
+        authContinuation?.resume(returning: status)
+        authContinuation = nil
         if Self.inflight === self { Self.inflight = nil }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        finish(locations.first?.coordinate)
+        finishLocation(locations.first?.coordinate)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        finish(nil)
+        finishLocation(nil)
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        // Permission dialog answered — a follow-up refresh will request the fix.
+        let status = manager.authorizationStatus
+        if status != .notDetermined {
+            finishAuth(status)
+        }
     }
 
     override init() {

@@ -616,7 +616,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var nextEventCard: some View {
-        if let next = model.upcomingDates.first {
+        if let next = model.upcomingDates.first(where: \.isUpcoming) {
             GlassCard(tint: Lovio.Palette.peach) {
                 HStack {
                     Image(systemName: next.kind.symbol)
@@ -624,14 +624,16 @@ struct HomeView: View {
                         .foregroundStyle(Lovio.Palette.rose)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(next.title).font(Lovio.Type_.headline)
-                        Text("Next adventure").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+                        Text(next.shortDateLabel)
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     VStack(spacing: 0) {
-                        Text("\(next.daysUntil)")
+                        Text(next.daysUntil == 0 ? "Today" : "\(next.daysUntil)")
                             .font(Lovio.Type_.numeric)
                             .foregroundStyle(Lovio.Gradients.hero)
-                        Text("days").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+                        Text(next.daysUntil == 0 ? "🎉" : "days").font(Lovio.Type_.caption).foregroundStyle(.secondary)
                     }
                 }
             }

@@ -33,20 +33,33 @@ async function partnerOf(relID: string, actorID: string): Promise<string | null>
   return members.find((m) => m !== actorID) ?? null;
 }
 
-async function push(userID: string, title: string, body: string): Promise<void> {
+async function push(userID: string, title: string, body: string, data: Record<string, string> = {}): Promise<void> {
   const tokens = await tokensFor(userID);
   if (tokens.length === 0) {
     console.warn(`push: no FCM tokens for user ${userID}`);
     return;
   }
+  // Alert push (shows on lock screen / banner even when the app is killed)
+  // + content-available so iOS can wake us briefly to sync widgets/photos.
+  // apns-push-type MUST be "alert" or Apple may drop the notification.
   const result = await admin.messaging().sendEachForMulticast({
     tokens,
     notification: { title, body },
-    // content-available wakes the partner's app in the background so it can
-    // pull the new photo/note/hearts onto their widgets immediately.
+    data: { sync: "widgets", ...data },
     apns: {
-      headers: { "apns-priority": "10" },
-      payload: { aps: { sound: "default", contentAvailable: true, badge: 1 } },
+      headers: {
+        "apns-priority": "10",
+        "apns-push-type": "alert",
+      },
+      payload: {
+        aps: {
+          alert: { title, body },
+          sound: "default",
+          badge: 1,
+          "content-available": 1,
+          "mutable-content": 1,
+        },
+      },
     },
   });
   console.log(`push → ${userID}: success=${result.successCount} failure=${result.failureCount} title="${title}"`);

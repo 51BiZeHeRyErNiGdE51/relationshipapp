@@ -106,11 +106,19 @@ struct PlanView: View {
                                 .foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        VStack(spacing: 0) {
-                            Text("\(date.daysUntil)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                                .foregroundStyle(Lovio.Gradients.hero)
-                            Text("days").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            if date.isUpcoming {
+                                Text(date.daysUntil == 0 ? "Today" : "\(date.daysUntil) days")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Lovio.Gradients.hero)
+                            } else {
+                                Text("Past")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(date.shortDateLabel)
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

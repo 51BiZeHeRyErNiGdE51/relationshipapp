@@ -57,11 +57,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
         // after the user grants push permission, which happens well after
         // ensureSession). Cloud Functions read it to deliver partner pushes.
         UserDefaults.standard.set(fcmToken, forKey: "lovio.fcm.token")
+        // Upload immediately so partner pushes work without waiting for a refresh.
+        Task { @MainActor in
+            await AppModel.current?.backgroundSync()
+        }
     }
 
-    /// Partner pushes carry `content-available: 1`, so iOS wakes us here in
-    /// the background — pull the partner's photo/note/hearts onto the widgets
-    /// immediately instead of waiting for the user to open the app.
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("APNs registration failed: \(error.localizedDescription)")
+    }
+
+    /// Alert + content-available pushes wake us here (even from background)
+    /// so we can pull photos onto widgets without the user opening the app.
+    /// Note: if the user force-quits the app, iOS will not deliver silent
+    /// wakes — but the alert banner still shows; tapping it syncs.
     func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any],
                      fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
@@ -77,7 +87,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        // Sync while showing the banner in the foreground.
+        Task { @MainActor in await AppModel.current?.backgroundSync() }
+        return [.banner, .sound, .badge]
     }
 
     /// Tapping a partner notification also syncs right away.
