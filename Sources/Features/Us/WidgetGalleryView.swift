@@ -68,7 +68,7 @@ struct WidgetGalleryView: View {
                 if !model.premium.isPremium {
                     Button { showPaywall = true } label: {
                         GlassCard(tint: Lovio.Palette.gold) {
-                            Label("Free includes Love Days. Unlock all \(specs.count) families with Premium.",
+                            Label("Free: Love Days + both Polaroids. Unlock all \(specs.count) widgets — for both of you — with Premium.",
                                   systemImage: "crown.fill")
                                 .font(Lovio.Type_.body)
                                 .foregroundStyle(Lovio.Palette.gold)

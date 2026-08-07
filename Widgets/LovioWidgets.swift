@@ -1,6 +1,43 @@
 import SwiftUI
 import WidgetKit
 
+// MARK: - Premium gate
+//
+// iOS can't hide widgets from the system widget gallery, so free users CAN
+// add premium widgets — instead of breaking, the widget renders a warm
+// invitation until the couple joins Premium. It unlocks live (snapshot
+// republish) the moment either partner subscribes.
+
+private struct PremiumLockedView: View {
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "crown.fill")
+                .font(.title3)
+                .foregroundStyle(Lovio.Palette.gold)
+            Text("A Premium widget")
+                .font(.system(.caption, design: .rounded, weight: .bold))
+                .foregroundStyle(.white)
+            Text("Join Premium in Missuo to light it up 💛")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.white.opacity(0.8))
+                .multilineTextAlignment(.center)
+        }
+        .lovioWidgetContainer([Lovio.Palette.plum, Lovio.Palette.midnight])
+    }
+}
+
+extension View {
+    /// Premium widgets: real content for premium couples, a warm lock for free.
+    @ViewBuilder
+    func premiumGate(_ snapshot: WidgetSnapshot) -> some View {
+        if snapshot.isPremium {
+            self
+        } else {
+            PremiumLockedView()
+        }
+    }
+}
+
 // MARK: - Love Days (free tier)
 
 struct LoveDaysWidget: Widget {
@@ -141,6 +178,7 @@ struct LovePulseWidget: Widget {
                     }
                 }
                 .lovioWidgetContainer([Lovio.Palette.rose.opacity(0.85), Lovio.Palette.plum])
+                .premiumGate(entry.snapshot)
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "person.2.badge.plus.fill")
@@ -152,6 +190,7 @@ struct LovePulseWidget: Widget {
                         .multilineTextAlignment(.center)
                 }
                 .lovioWidgetContainer()
+                .premiumGate(entry.snapshot)
             }
         }
         .configurationDisplayName("Love Pulse")
@@ -201,6 +240,7 @@ struct OpenQuestionWidget: Widget {
                 }
             }
             .lovioWidgetContainer()
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Open Question")
         .description("Today's question without opening the app.")
@@ -226,6 +266,7 @@ struct MoodSyncWidget: Widget {
                            emoji: entry.snapshot.partnerMood, energy: entry.snapshot.partnerEnergy)
             }
             .lovioWidgetContainer([Lovio.Palette.teal.opacity(0.7), Lovio.Palette.midnight])
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Mood Sync")
         .description("Both moods and energy, side by side.")
@@ -286,6 +327,7 @@ struct NextAdventureWidget: Widget {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .lovioWidgetContainer()
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Next Adventure")
         .description("Countdown to your next planned date or trip.")
@@ -297,7 +339,7 @@ struct NextAdventureWidget: Widget {
 
 struct MissYouWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "miss_you", provider: SnapshotProvider()) { _ in
+        StaticConfiguration(kind: "miss_you", provider: SnapshotProvider()) { entry in
             let sentToday = MissYouCounter.today()
             VStack(spacing: 10) {
                 Button(intent: SendMissYouIntent()) {
@@ -316,6 +358,7 @@ struct MissYouWidget: Widget {
                     .foregroundStyle(.white.opacity(0.6))
             }
             .lovioWidgetContainer([Lovio.Palette.rose, Lovio.Palette.plum])
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Missing You")
         .description("Tap to send an animated 'I miss you' — right from your home screen.")
@@ -351,6 +394,7 @@ struct SecretMessageWidget: Widget {
             }
             .buttonStyle(.plain)
             .lovioWidgetContainer()
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Secret Message")
         .description("A blurred note from your partner that reveals when you tap.")
@@ -380,6 +424,7 @@ struct LoveJarWidget: Widget {
                     .foregroundStyle(.white.opacity(0.7))
             }
             .lovioWidgetContainer()
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Love Jar")
         .description("Collect hearts together, one tap at a time.")
@@ -419,6 +464,7 @@ struct DistanceWidget: Widget {
                 }
             }
             .lovioWidgetContainer([Lovio.Palette.lavender.opacity(0.75), Lovio.Palette.midnight])
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Distance")
         .description("How far apart you are — updates when either of you uses Missuo. No background tracking.")
@@ -451,6 +497,7 @@ struct HugMeterWidget: Widget {
                 }
             }
             .lovioWidgetContainer([Lovio.Palette.teal.opacity(0.7), Lovio.Palette.midnight])
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Hug Meter")
         .description("Days since you were last in the same place.")
@@ -475,6 +522,7 @@ struct CompanionWidget: Widget {
                     .scaleEffect(y: 1.4)
             }
             .lovioWidgetContainer()
+            .premiumGate(entry.snapshot)
         }
         .configurationDisplayName("Companion")
         .description("Your shared world, growing with every check-in.")

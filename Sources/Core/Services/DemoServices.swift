@@ -456,7 +456,7 @@ public struct DemoPremiumService: PremiumService {
     public func offers() async throws -> [PaywallOffer] {
         [
             PaywallOffer(id: "lovio_yearly", title: "Yearly", monthlyEquivalent: 4.99,
-                         totalPrice: 59.99, currencyCode: "USD", trialDays: 7, isFeatured: true),
+                         totalPrice: 59.99, currencyCode: "USD", trialDays: 3, isFeatured: true),
             PaywallOffer(id: "lovio_monthly", title: "Monthly", monthlyEquivalent: 9.99,
                          totalPrice: 9.99, currencyCode: "USD", trialDays: 0, isFeatured: false),
         ]

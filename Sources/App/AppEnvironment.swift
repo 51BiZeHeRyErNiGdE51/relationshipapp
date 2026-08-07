@@ -99,6 +99,11 @@ final class AppModel {
 
     static func bootstrap() -> AppModel {
         let hasFirebase = FirebaseBootstrap.configureIfPossible()
+        if hasFirebase {
+            // Before the onboarding paywall renders — so it shows REAL store
+            // prices instead of the demo fallback ones.
+            RevenueCatBootstrap.configureEarly()
+        }
         let model = AppModel(services: hasFirebase ? .live() : .demo(), isDemoMode: !hasFirebase)
         current = model
         return model
@@ -450,6 +455,16 @@ final class AppModel {
         questionState = await question
         latestMoods = await moods ?? [:]
         upcomingDates = await dates ?? []
+        // Premium is shared: when the PARTNER subscribes, their entitlement is
+        // mirrored into the relationship — poll it while we're free so this
+        // phone unlocks within seconds instead of on the next cold start.
+        if !premium.isPremium {
+            let fresh = await services.premium.premiumState(relationship: rel, me: user.id)
+            if fresh.isPremium {
+                premium = fresh
+                services.analytics.track(.premiumInherited)
+            }
+        }
         publishWidgetSnapshot()
         await NotificationManager.shared.scheduleEventReminders(dates: upcomingDates)
         await syncIncomingWidgetContent()
@@ -717,6 +732,9 @@ final class AppModel {
     // MARK: Premium
 
     func purchase(offer: PaywallOffer) async {
+        // Onboarding paywall shows BEFORE the silent sign-in — mint the
+        // session on demand or the buy button silently did nothing.
+        if user == nil { await ensureSession() }
         guard let user else { return }
         do {
             services.analytics.track(.paywallOfferSelected(offerID: offer.id))

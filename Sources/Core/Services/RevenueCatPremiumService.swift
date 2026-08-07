@@ -24,12 +24,27 @@ enum RevenueCatBootstrap {
         ?? "test_NKYaJmNPYQDHQHnmuarVjdgzaKq"
     static let entitlementID = "premium"
 
+    /// Configure at app LAUNCH (anonymous RevenueCat user). The onboarding
+    /// paywall shows before our sign-in exists — without this it fell back to
+    /// hardcoded demo prices, which made the app look like it had two
+    /// different paywall designs with different prices.
+    static func configureEarly() {
+        guard !apiKey.isEmpty, !Purchases.isConfigured else { return }
+        Purchases.logLevel = .warn
+        Purchases.configure(withAPIKey: apiKey)
+    }
+
+    /// Attach our platform-independent user ID once sign-in completes.
     static func configure(appUserID: UserID) {
         guard !apiKey.isEmpty else { return }
-        Purchases.logLevel = .warn
-        Purchases.configure(with: Configuration.Builder(withAPIKey: apiKey)
-            .with(appUserID: appUserID)
-            .build())
+        if Purchases.isConfigured {
+            Purchases.shared.logIn(appUserID) { _, _, _ in }
+        } else {
+            Purchases.logLevel = .warn
+            Purchases.configure(with: Configuration.Builder(withAPIKey: apiKey)
+                .with(appUserID: appUserID)
+                .build())
+        }
     }
 
     static var isConfigured: Bool { Purchases.isConfigured }
