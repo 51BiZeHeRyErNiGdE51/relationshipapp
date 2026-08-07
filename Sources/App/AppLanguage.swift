@@ -60,6 +60,10 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     static func select(_ language: AppLanguage) {
         UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
+        // Push to Firestore on next presence sync (appLanguage field).
+        Task { @MainActor in
+            await AppModel.current?.syncLanguagePreference(language.rawValue)
+        }
     }
 }
 

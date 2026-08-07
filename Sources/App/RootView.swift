@@ -95,18 +95,24 @@ struct MainTabView: View {
         }
         .onChange(of: model.incomingLove) { _, love in
             guard let love else { return }
-            let who = model.partnerFirstName ?? "Your love"
+            let who = model.partnerFirstName ?? L10n.s("Your love")
             let title: String
             let emoji: String
             switch love.kind {
             case .heartTap:
-                title = "\(who) dropped \(love.count == 1 ? "a heart" : "\(love.count) hearts") in your jar"
+                title = love.count == 1
+                    ? L10n.s("%@ dropped a heart in your jar", who)
+                    : L10n.s("%@ dropped %@ hearts in your jar", who, "\(love.count)")
                 emoji = "💛"
             case .hugSent:
-                title = "\(who) sent you a hug\(love.count > 1 ? " ×\(love.count)" : "") 🤗"
+                title = love.count > 1
+                    ? L10n.s("%@ sent you a hug ×%@", who, "\(love.count)")
+                    : L10n.s("%@ sent you a hug 🤗", who)
                 emoji = "🤗"
             default:
-                title = "\(who) misses you\(love.count > 1 ? " ×\(love.count)" : "") 🥺"
+                title = love.count > 1
+                    ? L10n.s("%@ misses you ×%@", who, "\(love.count)")
+                    : L10n.s("%@ misses you 🥺", who)
                 emoji = "💌"
             }
             withAnimation(.smooth) { loveBurst = HomeView.HeartBurst(title: title, emoji: emoji) }

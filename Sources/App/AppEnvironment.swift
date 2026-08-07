@@ -284,6 +284,15 @@ final class AppModel {
             try await services.relationship.updateProfile(profile)
             myProfile = profile
 
+            // Language for localized partner pushes (also refreshed in presence).
+            let lang = AppLanguage.current.rawValue
+            if myProfile?.appLanguage != lang {
+                myProfile?.appLanguage = lang
+                if var p = myProfile {
+                    try? await services.relationship.updateProfile(p)
+                }
+            }
+
             var rel = try await services.relationship.currentRelationship(for: user.id)
             if rel == nil {
                 rel = try await services.relationship.createRelationship(
@@ -348,6 +357,15 @@ final class AppModel {
             await joinRelationship(code: code)
         }
         await drainWidgetOutbox()
+    }
+
+    /// Writes the in-app language choice so partner pushes arrive localized.
+    func syncLanguagePreference(_ code: String) async {
+        guard var profile = myProfile else { return }
+        guard profile.appLanguage != code else { return }
+        profile.appLanguage = code
+        try? await services.relationship.updateProfile(profile)
+        myProfile = profile
     }
 
     func replayIntro() {
@@ -490,6 +508,11 @@ final class AppModel {
         }
         if Date.now.timeIntervalSince(profile.lastActiveAt) > 5 * 60 {
             profile.lastActiveAt = .now
+            dirty = true
+        }
+        let lang = AppLanguage.current.rawValue
+        if profile.appLanguage != lang {
+            profile.appLanguage = lang
             dirty = true
         }
         // Distance widget: ONE coarse fix (~1 km) per presence heartbeat,

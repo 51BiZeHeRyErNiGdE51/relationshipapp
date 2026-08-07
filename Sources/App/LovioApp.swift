@@ -164,8 +164,8 @@ final class NotificationManager {
         let minute = defaults.integer(forKey: Pref.dailyMinute)
 
         let content = UNMutableNotificationContent()
-        content.title = "Today's question is waiting 💭"
-        content.body = "Answer before midnight to keep your streak alive."
+        content.title = L10n.s("Today's question is waiting 💭")
+        content.body = L10n.s("Answer before midnight to keep your streak alive.")
         content.sound = .default
 
         var components = DateComponents()
@@ -193,15 +193,15 @@ final class NotificationManager {
                                                      to: Calendar.current.startOfDay(for: .now)),
                days >= 1 {
                 await schedule(id: "event_\(date.id)_pre",
-                               title: "Tomorrow: \(date.title) 💛",
-                               body: "One more sleep. Anything left to plan together?",
+                               title: L10n.s("Tomorrow: %@ 💛", date.title),
+                               body: L10n.s("One more sleep. Anything left to plan together?"),
                                at: dayBefore, hour: 10)
             }
             if let dayOf = Calendar.current.date(byAdding: .day, value: days,
                                                  to: Calendar.current.startOfDay(for: .now)) {
                 await schedule(id: "event_\(date.id)_day",
-                               title: "Today: \(date.title) 🎉",
-                               body: "It's here — make it count.",
+                               title: L10n.s("Today: %@ 🎉", date.title),
+                               body: L10n.s("It's here — make it count."),
                                at: dayOf, hour: 9)
             }
         }
@@ -217,14 +217,14 @@ final class NotificationManager {
         Task {
             if midpoint > .now {
                 await schedule(id: "offer_reminder_mid",
-                               title: "Your couple's offer is waiting 💝",
-                               body: "50% off Missuo Premium — for both of you. A few days left.",
+                               title: L10n.s("Your couple's offer is waiting 💝"),
+                               body: L10n.s("50% off Missuo Premium — for both of you. A few days left."),
                                at: midpoint, hour: 19)
             }
             if lastCall > .now {
                 await schedule(id: "offer_reminder_last",
-                               title: "Last day: 50% off for you two",
-                               body: "Your discounted Premium offer expires tomorrow.",
+                               title: L10n.s("Last day: 50% off for you two"),
+                               body: L10n.s("Your discounted Premium offer expires tomorrow."),
                                at: lastCall, hour: 19)
             }
         }
@@ -237,8 +237,8 @@ final class NotificationManager {
             return
         }
         let content = UNMutableNotificationContent()
-        content.title = "One subscription, two of you 💞"
-        content.body = "All widgets, the AI coach and every companion — shared with your partner."
+        content.title = L10n.s("One subscription, two of you 💞")
+        content.body = L10n.s("All widgets, the AI coach and every companion — shared with your partner.")
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 7 * 86_400, repeats: true)
         center.add(UNNotificationRequest(identifier: "premium_weekly",

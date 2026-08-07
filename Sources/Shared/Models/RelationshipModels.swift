@@ -45,13 +45,15 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var latitude: Double?
     public var longitude: Double?
     public var locationUpdatedAt: Date?
+    /// `en` | `fr` | `de` | `ko` | `pt` | `es` — used for localized partner pushes.
+    public var appLanguage: String?
 
     public init(id: UserID, displayName: String, avatarURL: URL? = nil,
                 birthday: Date? = nil, lastSeenPlatform: String = "ios",
                 lastActiveAt: Date = .now, fcmTokens: [String] = [],
                 loveLanguage: LoveLanguage? = nil,
                 latitude: Double? = nil, longitude: Double? = nil,
-                locationUpdatedAt: Date? = nil) {
+                locationUpdatedAt: Date? = nil, appLanguage: String? = nil) {
         self.id = id
         self.displayName = displayName
         self.avatarURL = avatarURL
@@ -63,6 +65,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.latitude = latitude
         self.longitude = longitude
         self.locationUpdatedAt = locationUpdatedAt
+        self.appLanguage = appLanguage
     }
 
     public var initials: String {

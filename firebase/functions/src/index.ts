@@ -16,6 +16,17 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
+import {
+  normalizeLang,
+  pushCopy,
+  missYouPush,
+  heartPush,
+  hugPush,
+  widgetNotePush,
+  widgetPhotoPush,
+  meetupPush,
+  tomorrowEventPush,
+} from "./pushCopy";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -79,11 +90,24 @@ async function push(userID: string, title: string, body: string, data: Record<st
   }
 }
 
+/** Recipient's in-app language (synced from the iOS language picker). */
+async function langOf(userID: string) {
+  const doc = await db.collection("users").doc(userID).get();
+  return normalizeLang(doc.data()?.appLanguage as string | undefined);
+}
+
 /** First name of the actor for personalized pushes ("Eren misses you"). */
 async function nameOf(userID: string): Promise<string> {
   const doc = await db.collection("users").doc(userID).get();
   const raw = ((doc.data()?.displayName as string) ?? "").trim();
-  if (!raw || raw === "You") return "Your love";
+  if (!raw || raw === "You") {
+    const lang = normalizeLang(doc.data()?.appLanguage as string | undefined);
+    const fallback: Record<string, string> = {
+      en: "Your love", fr: "Ton amour", de: "Deine Liebe",
+      ko: "사랑하는 사람", pt: "O teu amor", es: "Tu amor",
+    };
+    return fallback[lang] ?? fallback.en;
+  }
   return raw.split(" ")[0];
 }
 
@@ -106,12 +130,18 @@ export const onAnswerCreated = onDocumentCreated(
 
     if (both.size >= 2) {
       await Promise.all([
-        push(partner, "Answers unlocked 🔓", "You both answered — read them together."),
-        push(actor, "Answers unlocked 🔓", "You both answered — read them together."),
+        (async () => {
+          const lang = await langOf(partner);
+          await push(partner, pushCopy.answersUnlockedTitle[lang], pushCopy.answersUnlockedBody[lang]);
+        })(),
+        (async () => {
+          const lang = await langOf(actor);
+          await push(actor, pushCopy.answersUnlockedTitle[lang], pushCopy.answersUnlockedBody[lang]);
+        })(),
       ]);
     } else {
-      await push(partner, "Your partner answered 💭",
-        "Answer today's question to unlock what they wrote.");
+      const lang = await langOf(partner);
+      await push(partner, pushCopy.partnerAnsweredTitle[lang], pushCopy.partnerAnsweredBody[lang]);
     }
   });
 
@@ -123,7 +153,8 @@ export const onMoodLogged = onDocumentCreated(
     if (!data) return;
     const partner = await partnerOf(event.params.relID, data.authorID as string);
     if (!partner) return;
-    await push(partner, "Mood update 💗", "Your partner just checked in. See how they're feeling.");
+    const lang = await langOf(partner);
+    await push(partner, pushCopy.moodTitle[lang], pushCopy.moodBody[lang]);
   });
 
 /** Relationship-graph events → targeted pushes (miss you, heart taps). */
@@ -136,30 +167,38 @@ export const onEventCreated = onDocumentCreated(
     if (!partner) return;
 
     const name = await nameOf(data.actorID as string);
+    const lang = await langOf(partner);
     switch (data.kind as string) {
-      case "miss_you_sent":
-        await push(partner, `${name} misses you 🥺`, "Tap to send one back.");
+      case "miss_you_sent": {
+        const copy = missYouPush(name, lang);
+        await push(partner, copy.title, copy.body);
         break;
-      case "heart_tap":
-        await push(partner, `${name} dropped a heart in your love jar ❤️`,
-          "They're thinking of you right now.");
+      }
+      case "heart_tap": {
+        const copy = heartPush(name, lang);
+        await push(partner, copy.title, copy.body);
         break;
-      case "hug_sent":
-        await push(partner, `${name} sent you a hug 🤗`,
-          "Wrap it around yourself.");
+      }
+      case "hug_sent": {
+        const copy = hugPush(name, lang);
+        await push(partner, copy.title, copy.body);
         break;
-      case "widget_note_sent":
-        await push(partner, `${name} left a note on your widget 💌`,
-          "It's syncing to your home screen now.");
+      }
+      case "widget_note_sent": {
+        const copy = widgetNotePush(name, lang);
+        await push(partner, copy.title, copy.body);
         break;
-      case "widget_photo_sent":
-        await push(partner, `${name} sent a photo to your widget 📸`,
-          "It's syncing to your Polaroid now.");
+      }
+      case "widget_photo_sent": {
+        const copy = widgetPhotoPush(name, lang);
+        await push(partner, copy.title, copy.body);
         break;
-      case "meetup_logged":
-        await push(partner, `${name} logged a hug 🤗`,
-          "Your Hug Meter is back to day zero.");
+      }
+      case "meetup_logged": {
+        const copy = meetupPush(name, lang);
+        await push(partner, copy.title, copy.body);
         break;
+      }
     }
   });
 
@@ -371,7 +410,10 @@ export const dailyDateReminders = onSchedule("every day 09:00", async () => {
     if (!relID) continue;
     const rel = await db.collection("relationships").doc(relID).get();
     const members = (rel.data()?.memberIDs as string[] | undefined) ?? [];
-    await Promise.all(members.map((m) =>
-      push(m, `Tomorrow: ${data.title} 💛`, "One more sleep — anything left to plan together?")));
+    await Promise.all(members.map(async (m) => {
+      const lang = await langOf(m);
+      const copy = tomorrowEventPush(data.title as string, lang);
+      await push(m, copy.title, copy.body);
+    }));
   }
 });
