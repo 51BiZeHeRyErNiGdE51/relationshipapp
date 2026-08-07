@@ -88,26 +88,48 @@ struct RevenueCatPremiumService: PremiumService {
             print("RevenueCat: no current offering with packages — using demo offers")
             return try await DemoPremiumService().offers()
         }
-        return current.availablePackages.map(Self.offer(from:))
+        // The decline-offer package lives in the same offering (Yearly_2) —
+        // never show it on the FIRST paywall. Most expensive plan leads.
+        return current.availablePackages
+            .filter { !Self.isSecondaryPackage($0) }
+            .map(Self.offer(from:))
+            .sorted { $0.totalPrice > $1.totalPrice }
     }
 
-    /// Package → PaywallOffer with honest labels for every package type.
+    /// The "wait, don't go" package: either any package in a dedicated
+    /// "secondary" offering, or — as configured in our dashboard — a package
+    /// in the main offering named like "Yearly_2" / "…second…".
+    private static func isSecondaryPackage(_ package: Package) -> Bool {
+        let id = package.identifier.lowercased()
+        return id.hasSuffix("_2") || id.contains("second")
+    }
+
+    /// Package → PaywallOffer. Labels/math come from the PRODUCT's real
+    /// subscription period, not the package slot — so a monthly product
+    /// accidentally mapped to the "$rc_lifetime" slot still says "Monthly".
     private static func offer(from package: Package) -> PaywallOffer {
         let product = package.storeProduct
         let title: String
         let months: Decimal
-        switch package.packageType {
-        case .annual: title = "Yearly"; months = 12
-        case .sixMonth: title = "6 Months"; months = 6
-        case .threeMonth: title = "3 Months"; months = 3
-        case .twoMonth: title = "2 Months"; months = 2
-        case .monthly: title = "Monthly"; months = 1
-        case .weekly: title = "Weekly"; months = Decimal(7) / Decimal(30)
-        // Lifetime: per-week framing amortized over an assumed 3 years.
-        case .lifetime: title = "Lifetime"; months = 36
-        default:
-            title = product.localizedTitle.isEmpty ? "Premium" : product.localizedTitle
-            months = 1
+        if let period = product.subscriptionPeriod {
+            switch period.unit {
+            case .year:
+                title = period.value == 1 ? "Yearly" : "\(period.value) Years"
+                months = Decimal(period.value) * 12
+            case .month:
+                title = period.value == 1 ? "Monthly" : "\(period.value) Months"
+                months = Decimal(period.value)
+            case .week:
+                title = period.value == 1 ? "Weekly" : "\(period.value) Weeks"
+                months = Decimal(period.value) * 7 / 30
+            case .day:
+                title = "\(period.value) Days"
+                months = Decimal(period.value) / 30
+            }
+        } else {
+            // One-time purchase: per-week framing amortized over 3 years.
+            title = "Lifetime"
+            months = 36
         }
         return PaywallOffer(
             id: package.identifier,
@@ -116,7 +138,7 @@ struct RevenueCatPremiumService: PremiumService {
             totalPrice: product.price,
             currencyCode: product.currencyCode ?? "USD",
             trialDays: trialDays(of: product),
-            isFeatured: package.packageType == .annual || package.packageType == .lifetime)
+            isFeatured: product.subscriptionPeriod?.unit == .year || product.subscriptionPeriod == nil)
     }
 
     /// Free-trial length in DAYS regardless of how the store expresses the
@@ -140,10 +162,12 @@ struct RevenueCatPremiumService: PremiumService {
             return try await DemoPremiumService().secondaryOffer()
         }
         let offerings = try await Purchases.shared.offerings()
-        guard let package = offerings.offering(identifier: "secondary")?.availablePackages.first
-        else { return nil }
+        // Preferred: a dedicated "secondary" offering. Fallback: the
+        // "Yearly_2"-style package inside the current offering.
+        let package = offerings.offering(identifier: "secondary")?.availablePackages.first
+            ?? offerings.current?.availablePackages.first(where: Self.isSecondaryPackage)
+        guard let package else { return nil }
         var offer = Self.offer(from: package)
-        offer.title += " — special offer"
         offer.isFeatured = true
         return offer
     }

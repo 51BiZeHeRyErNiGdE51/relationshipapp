@@ -140,8 +140,8 @@ struct PaywallView: View {
                 Button("Restore purchases") {
                     Task { await model.restorePurchases() }
                 }
-                Button("Terms") {}
-                Button("Privacy") {}
+                Link("Terms", destination: URL(string: "https://bsekapps.com/terms-of-service")!)
+                Link("Privacy", destination: URL(string: "https://bsekapps.com/privacy-policy")!)
             }
             .font(Lovio.Type_.caption)
             .foregroundStyle(.white.opacity(0.55))
@@ -161,7 +161,7 @@ struct PaywallView: View {
                     if isPurchasing {
                         ProgressView().tint(Lovio.Palette.plum)
                     } else if let selected, selected.trialDays > 0 {
-                        Text("Start Using Free")
+                        Text("Try \(selected.trialDays) Days Free")
                     } else {
                         Text("Continue")
                     }
@@ -174,7 +174,20 @@ struct PaywallView: View {
             }
             .disabled(selected == nil || isPurchasing)
             .padding(.horizontal, Lovio.Metrics.screenPadding)
-            .padding(.bottom, 24)
+
+            // Risk-reversal line directly under the button — the single
+            // highest-leverage reassurance on a trial paywall.
+            Group {
+                if let selected, selected.trialDays > 0 {
+                    Text("No payment now · cancel anytime in the App Store")
+                } else {
+                    Text("Renews automatically · cancel anytime in the App Store")
+                }
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(0.6))
+            .padding(.top, 8)
+            .padding(.bottom, 20)
         }
     }
 
@@ -223,6 +236,24 @@ struct PaywallView: View {
             }
 
             VStack(spacing: 4) {
+                // Anchor: regular yearly price struck through + concrete % off.
+                if let full = offers.first(where: isYearly)?.totalPrice,
+                   full > offer.totalPrice {
+                    HStack(spacing: 8) {
+                        Text(full.formatted(.currency(code: offer.currencyCode)))
+                            .font(.system(.title3, design: .rounded, weight: .bold))
+                            .strikethrough()
+                            .foregroundStyle(.white.opacity(0.55))
+                        if let percent = discountPercent(offer, against: full) {
+                            Text("-\(percent)%")
+                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Lovio.Palette.gold))
+                                .foregroundStyle(Lovio.Palette.plum)
+                        }
+                    }
+                }
                 Text(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))
                     .font(.system(size: 40, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
@@ -263,9 +294,25 @@ struct PaywallView: View {
                 .font(Lovio.Type_.caption)
                 .foregroundStyle(.white.opacity(0.55))
 
+            HStack(spacing: 20) {
+                Button("Restore purchases") { Task { await model.restorePurchases() } }
+                Link("Terms", destination: URL(string: "https://bsekapps.com/terms-of-service")!)
+                Link("Privacy", destination: URL(string: "https://bsekapps.com/privacy-policy")!)
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(0.45))
+
             Spacer()
         }
         .padding(Lovio.Metrics.screenPadding)
+    }
+
+    private func discountPercent(_ offer: PaywallOffer, against full: Decimal) -> Int? {
+        guard full > 0 else { return nil }
+        let fraction = 1 - NSDecimalNumber(decimal: offer.totalPrice).doubleValue
+            / NSDecimalNumber(decimal: full).doubleValue
+        let percent = Int((fraction * 100).rounded())
+        return percent >= 5 ? percent : nil
     }
 
     private func feature(_ symbol: String, _ text: String) -> some View {
@@ -280,7 +327,19 @@ struct PaywallView: View {
     }
 
     private func isYearly(_ offer: PaywallOffer) -> Bool {
-        offer.id.contains("yearly") || offer.title.localizedCaseInsensitiveContains("year")
+        offer.id.lowercased().contains("yearly")
+            || offer.title.localizedCaseInsensitiveContains("year")
+    }
+
+    /// % saved vs the most expensive per-month plan on screen (the classic
+    /// yearly-vs-monthly anchor). Nil when under 5% — a tiny badge cheapens it.
+    private func savingsPercent(_ offer: PaywallOffer) -> Int? {
+        guard let base = offers.map(\.monthlyEquivalent).max(), base > 0,
+              offer.monthlyEquivalent < base else { return nil }
+        let fraction = 1 - NSDecimalNumber(decimal: offer.monthlyEquivalent).doubleValue
+            / NSDecimalNumber(decimal: base).doubleValue
+        let percent = Int((fraction * 100).rounded())
+        return percent >= 5 ? percent : nil
     }
 
     /// "/year", "/month" — or " once" for lifetime (one-time) products.
@@ -300,7 +359,15 @@ struct PaywallView: View {
                         Text(offer.title)
                             .font(Lovio.Type_.headline)
                             .foregroundStyle(.white)
-                        if offer.isFeatured {
+                        // Concrete "SAVE 45%" beats a generic "BEST VALUE".
+                        if let percent = savingsPercent(offer) {
+                            Text("SAVE \(percent)%")
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Lovio.Palette.gold))
+                                .foregroundStyle(Lovio.Palette.plum)
+                        } else if offer.isFeatured {
                             Text("BEST VALUE")
                                 .font(.system(size: 10, weight: .heavy, design: .rounded))
                                 .padding(.horizontal, 8)
@@ -310,7 +377,7 @@ struct PaywallView: View {
                         }
                     }
                     if offer.trialDays > 0 {
-                        Text("\(offer.trialDays) days free · cancel anytime")
+                        Text("\(offer.trialDays) days free, then \(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))\(priceSuffix(offer))")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(.white.opacity(0.7))
                     } else {
