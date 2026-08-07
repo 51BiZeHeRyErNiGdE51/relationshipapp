@@ -664,6 +664,19 @@ struct SettingsView: View {
             }
 
             Section {
+                // Opens the user's own mail app (Mail, Gmail, …) — no
+                // in-app email system.
+                Link(destination: URL(string:
+                    "mailto:atlasvale@bsekapps.com?subject=Missuo%20Feedback")!) {
+                    Label("Contact us", systemImage: "envelope")
+                }
+            } header: {
+                Text("Support")
+            } footer: {
+                Text("Questions, bugs, ideas — we read everything.")
+            }
+
+            Section {
                 Button("Replay intro") { model.replayIntro() }
                 Button("Sign out") { Task { await model.signOut() } }
                 Button("End relationship", role: .destructive) { showEndRelationship = true }

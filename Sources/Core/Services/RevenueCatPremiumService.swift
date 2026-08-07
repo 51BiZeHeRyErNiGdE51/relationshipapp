@@ -16,8 +16,12 @@ import RevenueCat
 //      but the purchaser's entitlement survives and re-mirrors on reconnection.
 
 enum RevenueCatBootstrap {
-    /// Set your public SDK key here (or inject via xcconfig / plist).
-    static let apiKey = ProcessInfo.processInfo.environment["REVENUECAT_API_KEY"] ?? ""
+    /// RevenueCat PUBLIC SDK key — safe to ship in the binary.
+    /// Currently the Test Store key (fake purchases, no App Store needed).
+    /// Before release: replace with the Apple App Store key ("appl_…") from
+    /// RevenueCat → Project Settings → API Keys.
+    static let apiKey = ProcessInfo.processInfo.environment["REVENUECAT_API_KEY"]
+        ?? "test_NKYaJmNPYQDHQHnmuarVjdgzaKq"
     static let entitlementID = "premium"
 
     static func configure(appUserID: UserID) {
