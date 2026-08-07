@@ -13,7 +13,7 @@
 
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
 
@@ -162,6 +162,53 @@ export const onEventCreated = onDocumentCreated(
         break;
     }
   });
+
+/**
+ * Widget → server bridge. Interactive widgets (Miss You / Heart Tap) run in
+ * the widget extension where there's no Firebase SDK — while the app is
+ * killed, their outbox never drains and the partner never gets a push.
+ * The widget calls this endpoint directly instead; it writes the same event
+ * document the app would, so onEventCreated delivers the push immediately.
+ *
+ * Auth: no ID token available in the extension, so membership is verified by
+ * requiring the caller to know BOTH opaque IDs (userID + relationshipID) and
+ * that the user is a member of that relationship.
+ */
+const WIDGET_EVENT_KINDS = new Set(["miss_you_sent", "heart_tap", "hug_sent"]);
+
+export const widgetAction = onRequest({ invoker: "public", cors: true }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("POST only");
+    return;
+  }
+  const { relationshipID, userID, kind } = (req.body ?? {}) as {
+    relationshipID?: string; userID?: string; kind?: string;
+  };
+  if (!relationshipID || !userID || !kind || !WIDGET_EVENT_KINDS.has(kind)) {
+    res.status(400).json({ ok: false, error: "relationshipID, userID and a valid kind are required" });
+    return;
+  }
+
+  const rel = await db.collection("relationships").doc(relationshipID).get();
+  const members = (rel.data()?.memberIDs as string[] | undefined) ?? [];
+  if (!members.includes(userID)) {
+    res.status(403).json({ ok: false, error: "not a member" });
+    return;
+  }
+
+  // Same shape the iOS app writes (RelationshipEvent) so both clients and
+  // onEventCreated treat it identically.
+  const ref = db.collection("relationships").doc(relationshipID).collection("events").doc();
+  await ref.set({
+    id: ref.id,
+    kind,
+    actorID: userID,
+    occurredAt: admin.firestore.Timestamp.now(),
+    metadata: { source: "widget" },
+  });
+  console.log(`widgetAction: ${kind} by ${userID} in ${relationshipID}`);
+  res.json({ ok: true });
+});
 
 // ---------------------------------------------------------------------------
 // AI Coach — DeepSeek, strictly server-side.

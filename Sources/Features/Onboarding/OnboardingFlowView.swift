@@ -58,10 +58,26 @@ struct OnboardingFlowView: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 MissuoLogoMark(size: 36, shadow: false)
-                Text("Missuo")
+                Text(verbatim: "Missuo")
                     .font(Lovio.Type_.title)
                     .foregroundStyle(Lovio.Palette.plum)
                 Spacer()
+                // Language is changeable later in Us → Settings too.
+                LanguageMenu()
+                // Skip straight to pairing; Home shows the paywall right after
+                // (tutorial skippers never saw the onboarding paywall).
+                Button {
+                    Haptics.light()
+                    UserDefaults.standard.set(true, forKey: AppModel.skippedTutorialKey)
+                    withAnimation(.smooth) { step = .pairing }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(.ultraThinMaterial))
+                }
+                .accessibilityLabel("Skip tutorial")
             }
             .padding(.horizontal, Lovio.Metrics.screenPadding)
             .padding(.top, 12)
@@ -85,11 +101,13 @@ struct OnboardingFlowView: View {
                                     .symbolEffect(.pulse)
                             }
                         }
-                        Text(item.title)
+                        // LocalizedStringKey(...) so the catalog translations apply
+                        // (plain String properties render verbatim).
+                        Text(LocalizedStringKey(item.title))
                             .font(Lovio.Type_.display)
                             .multilineTextAlignment(.center)
                             .minimumScaleFactor(0.7)
-                        Text(item.subtitle)
+                        Text(LocalizedStringKey(item.subtitle))
                             .font(Lovio.Type_.body)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -103,7 +121,8 @@ struct OnboardingFlowView: View {
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
 
-            Button(page < pages.count - 1 ? "Continue" : "Get started") {
+            Button(page < pages.count - 1 ? LocalizedStringKey("Continue")
+                                          : LocalizedStringKey("Get started")) {
                 Haptics.light()
                 if page < pages.count - 1 {
                     withAnimation(.smooth) { page += 1 }
@@ -226,16 +245,22 @@ struct PairingStepView: View {
             Button {
                 isWorking = true
                 Task {
-                    if hasAnniversary { await model.setAnniversary(anniversary) }
+                    // Complete onboarding FIRST: entering a partner code
+                    // switches to THEIR relationship document — an anniversary
+                    // written before the join landed on the abandoned solo
+                    // relationship and silently vanished (the bug where it
+                    // "only worked from Settings").
                     await model.completeOnboarding(
                         partnerCode: partnerCode.isEmpty ? nil : partnerCode)
+                    if hasAnniversary { await model.setAnniversary(anniversary) }
                     isWorking = false
                 }
             } label: {
                 if isWorking {
                     ProgressView().tint(.white)
                 } else {
-                    Text(partnerCode.count >= 6 ? "Connect & enter Missuo" : "Skip for now")
+                    Text(partnerCode.count >= 6 ? LocalizedStringKey("Connect & enter Missuo")
+                                                : LocalizedStringKey("Skip for now"))
                 }
             }
             .buttonStyle(LovioPrimaryButtonStyle())

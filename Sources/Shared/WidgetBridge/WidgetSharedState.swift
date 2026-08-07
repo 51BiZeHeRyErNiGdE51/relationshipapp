@@ -16,6 +16,12 @@ public enum AppGroup {
     }
     private static let snapshotKey = "lovio.widget.snapshot.v1"
 
+    /// Written by the app so interactive widgets can talk to the backend
+    /// directly (heart / miss-you pushes must fire even when the app is
+    /// killed and the outbox can't drain).
+    public static let relationshipIDKey = "missuo.widget.relationshipID"
+    public static let userIDKey = "missuo.widget.userID"
+
     public static func save(_ snapshot: WidgetSnapshot) {
         if let data = try? JSONEncoder().encode(snapshot) {
             defaults.set(data, forKey: snapshotKey)

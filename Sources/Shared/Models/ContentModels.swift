@@ -154,13 +154,18 @@ public struct JournalMedia: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var kind: JournalMediaKind
     public var remoteURL: URL?
+    /// Firebase Storage path (relationships/{id}/…jpg) — how photos are
+    /// actually persisted and re-displayed. Optional: old entries lack it.
+    public var storagePath: String?
     public var durationSeconds: Double?
 
     public init(id: String = UUID().uuidString, kind: JournalMediaKind,
-                remoteURL: URL? = nil, durationSeconds: Double? = nil) {
+                remoteURL: URL? = nil, storagePath: String? = nil,
+                durationSeconds: Double? = nil) {
         self.id = id
         self.kind = kind
         self.remoteURL = remoteURL
+        self.storagePath = storagePath
         self.durationSeconds = durationSeconds
     }
 }

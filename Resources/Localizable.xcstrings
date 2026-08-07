@@ -1,0 +1,407 @@
+{
+  "sourceLanguage" : "en",
+  "version" : "1.0",
+  "strings" : {
+    "One question.\nEvery day." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une question.\nChaque jour." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Eine Frage.\nJeden Tag." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매일,\n질문 하나." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Uma pergunta.\nTodos os dias." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Una pregunta.\nCada día." } }
+      }
+    },
+    "You both answer blind — answers unlock only when you've both replied. The little ritual couples look forward to." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vous répondez chacun à l'aveugle — les réponses ne se dévoilent que lorsque vous avez tous les deux répondu. Le petit rituel que les couples attendent." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ihr antwortet beide blind — die Antworten erscheinen erst, wenn ihr beide geantwortet habt. Das kleine Ritual, auf das sich Paare freuen." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "서로 모르게 답하고, 둘 다 답해야 서로의 답이 공개돼요. 커플이 매일 기다리는 작은 의식이에요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Vocês respondem às cegas — as respostas só se revelam quando ambos responderem. O pequeno ritual que os casais adoram." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Ambos respondéis a ciegas — las respuestas se desbloquean solo cuando los dos habéis contestado. El pequeño ritual que las parejas esperan." } }
+      }
+    },
+    "Your home screens,\nconnected." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vos écrans d'accueil,\nconnectés." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Eure Homescreens,\nverbunden." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "두 홈 화면을\n하나로." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Os vossos ecrãs iniciais,\nligados." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Vuestras pantallas de inicio,\nconectadas." } }
+      }
+    },
+    "Moods, countdowns, secret notes and a heartbeat that pulses when you're both online — live on your home screen, no app opening needed." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Humeurs, comptes à rebours, notes secrètes et un battement de cœur quand vous êtes en ligne tous les deux — en direct sur votre écran d'accueil, sans ouvrir l'app." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Stimmungen, Countdowns, geheime Notizen und ein Herzschlag, wenn ihr beide online seid — live auf deinem Homescreen, ganz ohne die App zu öffnen." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "기분, 카운트다운, 비밀 메모, 둘 다 접속하면 뛰는 심장박동까지 — 앱을 열지 않아도 홈 화면에서 실시간으로." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Humores, contagens decrescentes, notas secretas e um batimento que pulsa quando estão os dois online — ao vivo no ecrã inicial, sem abrir a app." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Estados de ánimo, cuentas atrás, notas secretas y un latido que palpita cuando ambos estáis en línea — en vivo en tu pantalla de inicio, sin abrir la app." } }
+      }
+    },
+    "Grow something\ntogether." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Faites grandir\nquelque chose à deux." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Lasst etwas\ngemeinsam wachsen." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "함께 무언가를\n키워보세요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Façam crescer algo\njuntos." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Haced crecer algo\njuntos." } }
+      }
+    },
+    "A shared garden that blooms when you show up for each other — and wilts when you don't. Streaks, memories, milestones. All of it, yours." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Un jardin partagé qui fleurit quand vous êtes présents l'un pour l'autre — et se fane sinon. Séries, souvenirs, étapes. Tout ça, à vous." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ein gemeinsamer Garten, der blüht, wenn ihr füreinander da seid — und welkt, wenn nicht. Serien, Erinnerungen, Meilensteine. Alles davon gehört euch." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "서로에게 마음을 쓰면 피어나고, 소홀하면 시드는 둘만의 정원. 스트릭, 추억, 기념일까지 모두 두 사람의 것." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Um jardim partilhado que floresce quando cuidam um do outro — e murcha quando não. Sequências, memórias, marcos. Tudo isso, vosso." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Un jardín compartido que florece cuando estáis el uno para el otro — y se marchita si no. Rachas, recuerdos, hitos. Todo eso, vuestro." } }
+      }
+    },
+    "Continue" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Continuer" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Weiter" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "계속" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Continuar" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Continuar" } }
+      }
+    },
+    "Get started" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Commencer" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Loslegen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "시작하기" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Começar" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Empezar" } }
+      }
+    },
+    "Skip tutorial" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Passer le tutoriel" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Tutorial überspringen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "튜토리얼 건너뛰기" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Saltar tutorial" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Saltar tutorial" } }
+      }
+    },
+    "You're connected 💞" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vous êtes connectés 💞" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ihr seid verbunden 💞" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결되었어요 💞" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Estão ligados 💞" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Estáis conectados 💞" } }
+      }
+    },
+    "You and %@ share one space now. Everything either of you adds appears for both." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@ et toi partagez désormais un même espace. Tout ce que l'un ajoute apparaît pour les deux." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Du und %@ teilt euch jetzt einen Raum. Alles, was einer von euch hinzufügt, sehen beide." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이제 %@님과 하나의 공간을 공유해요. 한 사람이 추가하면 둘 다 볼 수 있어요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Tu e %@ partilham agora um só espaço. Tudo o que um adicionar aparece para os dois." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tú y %@ compartís ahora un mismo espacio. Todo lo que añada uno aparece para los dos." } }
+      }
+    },
+    "Enter Missuo" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Entrer dans Missuo" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Missuo betreten" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Missuo 시작하기" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Entrar no Missuo" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Entrar en Missuo" } }
+      }
+    },
+    "Bring your person in" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Invite ta personne" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Hol deine Person dazu" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "소중한 사람을 초대하세요" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Traz a tua pessoa" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Invita a tu persona" } }
+      }
+    },
+    "Missuo works as a pair — iPhone or Android. Share your code, or enter theirs. You can also do this later." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Missuo fonctionne à deux — iPhone ou Android. Partage ton code, ou saisis le sien. Tu peux aussi le faire plus tard." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Missuo funktioniert zu zweit — iPhone oder Android. Teile deinen Code oder gib ihren ein. Du kannst das auch später machen." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Missuo는 둘이 함께 써요 — iPhone이든 Android든. 내 코드를 공유하거나 상대 코드를 입력하세요. 나중에 해도 괜찮아요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "O Missuo funciona a dois — iPhone ou Android. Partilha o teu código ou introduz o dele. Também podes fazer isto mais tarde." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Missuo funciona en pareja — iPhone o Android. Comparte tu código o introduce el suyo. También puedes hacerlo más tarde." } }
+      }
+    },
+    "Your code" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ton code" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Dein Code" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "내 코드" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "O teu código" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tu código" } }
+      }
+    },
+    "Share with your partner" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Partager avec ton partenaire" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Mit deinem Partner teilen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파트너에게 공유" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Partilhar com o teu par" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Compartir con tu pareja" } }
+      }
+    },
+    "— or —" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "— ou —" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "— oder —" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "— 또는 —" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "— ou —" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "— o —" } }
+      }
+    },
+    "Have their code?" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Tu as son code ?" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Hast du ihren Code?" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "상대방 코드가 있나요?" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Tens o código dele?" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "¿Tienes su código?" } }
+      }
+    },
+    "We know our anniversary" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "On connaît notre date d'anniversaire" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wir kennen unser Jahrestag-Datum" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "우리의 기념일을 알고 있어요" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Sabemos a nossa data de namoro" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Sabemos nuestro aniversario" } }
+      }
+    },
+    "Together since" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ensemble depuis" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zusammen seit" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "함께한 날" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Juntos desde" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Juntos desde" } }
+      }
+    },
+    "Connect & enter Missuo" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connecter et entrer dans Missuo" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Verbinden & Missuo betreten" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결하고 시작하기" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Ligar e entrar no Missuo" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Conectar y entrar en Missuo" } }
+      }
+    },
+    "Skip for now" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Passer pour l'instant" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Vorerst überspringen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "나중에 하기" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Saltar por agora" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Omitir por ahora" } }
+      }
+    },
+    "Enter your partner's code" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisis le code de ton partenaire" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib den Code deines Partners ein" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파트너의 코드를 입력하세요" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Introduz o código do teu par" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Introduce el código de tu pareja" } }
+      }
+    },
+    "Connect" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connecter" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Verbinden" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Ligar" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Conectar" } }
+      }
+    },
+    "Today" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aujourd'hui" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Heute" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오늘" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Hoje" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Hoy" } }
+      }
+    },
+    "Widgets" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Widgets" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Widgets" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "위젯" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Widgets" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Widgets" } }
+      }
+    },
+    "Memories" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Souvenirs" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "추억" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Memórias" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Recuerdos" } }
+      }
+    },
+    "Play" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Jouer" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Spielen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "놀이" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Jogar" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Jugar" } }
+      }
+    },
+    "Us" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nous" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wir" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "우리" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Nós" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Nosotros" } }
+      }
+    },
+    "We couldn't connect. Check your internet and try again." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connexion impossible. Vérifie ta connexion internet et réessaie." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Keine Verbindung möglich. Prüfe dein Internet und versuch es erneut." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결할 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Não foi possível ligar. Verifica a tua internet e tenta de novo." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No pudimos conectar. Comprueba tu internet e inténtalo de nuevo." } }
+      }
+    },
+    "Try Again" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Réessayer" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erneut versuchen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다시 시도" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Tentar de novo" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Reintentar" } }
+      }
+    },
+    "Something went wrong" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Un problème est survenu" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Etwas ist schiefgelaufen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "문제가 발생했어요" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Algo correu mal" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Algo salió mal" } }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "확인" } }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Fertig" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "완료" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Listo" } }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Annuler" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Abbrechen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "취소" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Cancelar" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Cancelar" } }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Sichern" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Guardar" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Guardar" } }
+      }
+    },
+    "Our Timeline" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Notre chronologie" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Unsere Timeline" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "우리의 타임라인" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "A nossa cronologia" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Nuestra cronología" } }
+      }
+    },
+    "The big milestones — first kiss, first trip, moving in. Your story in chapters." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les grandes étapes — premier baiser, premier voyage, emménagement. Votre histoire en chapitres." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die großen Meilensteine — erster Kuss, erste Reise, Zusammenziehen. Eure Geschichte in Kapiteln." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첫 키스, 첫 여행, 동거 시작 — 큰 순간들. 두 사람의 이야기를 챕터로." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Os grandes marcos — primeiro beijo, primeira viagem, viver juntos. A vossa história em capítulos." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Los grandes hitos — primer beso, primer viaje, mudanza juntos. Vuestra historia en capítulos." } }
+      }
+    },
+    "Journal — the everyday moments" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Journal — les moments du quotidien" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Tagebuch — die Alltagsmomente" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저널 — 일상의 순간들" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Diário — os momentos do dia a dia" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Diario — los momentos del día a día" } }
+      }
+    },
+    "Your shared journal" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Votre journal partagé" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Euer gemeinsames Tagebuch" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "둘만의 공유 저널" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "O vosso diário partilhado" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Vuestro diario compartido" } }
+      }
+    },
+    "Memories is your everyday journal — the small stuff: a funny dinner, a rainy walk, a photo you don't want to lose. The Timeline above is for the big milestones only." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Souvenirs est votre journal du quotidien — les petites choses : un dîner drôle, une balade sous la pluie, une photo à garder. La chronologie au-dessus est réservée aux grandes étapes." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungen ist euer Alltagstagebuch — die kleinen Dinge: ein lustiges Abendessen, ein Spaziergang im Regen, ein Foto zum Behalten. Die Timeline darüber ist nur für die großen Meilensteine." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "추억은 일상의 저널이에요 — 재미있던 저녁, 비 오는 날 산책, 간직하고 싶은 사진 같은 소소한 것들. 위의 타임라인은 큰 순간들만을 위한 공간이에요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Memórias é o vosso diário do dia a dia — as pequenas coisas: um jantar divertido, um passeio à chuva, uma foto a guardar. A cronologia acima é só para os grandes marcos." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Recuerdos es vuestro diario del día a día — las pequeñas cosas: una cena divertida, un paseo bajo la lluvia, una foto que no quieres perder. La cronología de arriba es solo para los grandes hitos." } }
+      }
+    },
+    "Tap + to write your first memory. Both of you see everything here." : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Touche + pour écrire votre premier souvenir. Vous voyez tout ici, tous les deux." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Tippe auf +, um eure erste Erinnerung zu schreiben. Ihr seht hier beide alles." } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "+를 눌러 첫 추억을 기록해 보세요. 여기 있는 모든 것은 둘 다 볼 수 있어요." } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Toca em + para escrever a vossa primeira memória. Aqui, veem tudo os dois." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Toca + para escribir vuestro primer recuerdo. Aquí lo veis todo los dos." } }
+      }
+    },
+    "New Memory" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nouveau souvenir" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Neue Erinnerung" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 추억" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Nova memória" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Nuevo recuerdo" } }
+      }
+    },
+    "Search memories" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher des souvenirs" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungen durchsuchen" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "추억 검색" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Pesquisar memórias" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Buscar recuerdos" } }
+      }
+    },
+    "Language" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Langue" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Sprache" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "언어" } },
+        "pt" : { "stringUnit" : { "state" : "translated", "value" : "Idioma" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Idioma" } }
+      }
+    }
+  }
+}

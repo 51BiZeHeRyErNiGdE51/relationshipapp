@@ -12,12 +12,19 @@ import { join } from "path";
 
 const PROJECT = "lovio-18416";
 const PROJECT_NUMBER = "583801376624";
-const SERVICES = ["oneventcreated", "onanswercreated", "onmoodlogged"];
-const INVOKERS = [
+const EVENTARC_INVOKERS = [
   `serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com`,
   `serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com`,
   `serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com`,
 ];
+// widgetaction is called straight from the widget extension (no auth header),
+// so it must stay publicly invokable like any onRequest({ invoker: "public" }).
+const SERVICES = {
+  oneventcreated: EVENTARC_INVOKERS,
+  onanswercreated: EVENTARC_INVOKERS,
+  onmoodlogged: EVENTARC_INVOKERS,
+  widgetaction: ["allUsers"],
+};
 
 async function accessToken() {
   const cfg = JSON.parse(
@@ -42,7 +49,7 @@ async function main() {
   const token = await accessToken();
   const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
-  for (const name of SERVICES) {
+  for (const [name, invokers] of Object.entries(SERVICES)) {
     const getUrl =
       `https://run.googleapis.com/v2/projects/${PROJECT}/locations/us-central1/services/${name}:getIamPolicy`;
     const policy = await (await fetch(getUrl, { headers: H })).json();
@@ -56,7 +63,7 @@ async function main() {
       binding = { role: "roles/run.invoker", members: [] };
       policy.bindings.push(binding);
     }
-    for (const m of INVOKERS) {
+    for (const m of invokers) {
       if (!binding.members.includes(m)) binding.members.push(m);
     }
     const setUrl =

@@ -29,21 +29,41 @@ struct MemoriesView: View {
             VStack(spacing: 16) {
                 yearlyRecapCard
 
+                // Timeline = the BIG chapters (first kiss, first trip, moving
+                // in). Memories below = the everyday journal. The subtitle
+                // makes that difference explicit — the two used to be
+                // indistinguishable at a glance.
                 NavigationLink {
                     RelationshipTimelineView()
                 } label: {
                     GlassCard(tint: Lovio.Palette.peach) {
-                        HStack {
+                        HStack(spacing: 12) {
                             Image(systemName: "point.topleft.down.to.point.bottomright.curvepath.fill")
                                 .foregroundStyle(Lovio.Palette.rose)
-                            Text("Our Timeline — from first kiss to today")
-                                .font(Lovio.Type_.headline)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Our Timeline")
+                                    .font(Lovio.Type_.headline)
+                                Text("The big milestones — first kiss, first trip, moving in. Your story in chapters.")
+                                    .font(Lovio.Type_.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
                             Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                         }
                     }
                 }
                 .buttonStyle(.plain)
+
+                if entries.isEmpty {
+                    journalExplainer
+                } else {
+                    HStack {
+                        Text("Journal — the everyday moments")
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
 
                 ForEach(filtered) { entry in
                     journalCard(entry)
@@ -103,6 +123,23 @@ struct MemoriesView: View {
         }
     }
 
+    /// First-run guidance: what the journal is (vs. the Timeline above).
+    private var journalExplainer: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Your shared journal", systemImage: "book.closed.fill")
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(Lovio.Palette.rose)
+                Text("Memories is your everyday journal — the small stuff: a funny dinner, a rainy walk, a photo you don't want to lose. The Timeline above is for the big milestones only.")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
+                Text("Tap + to write your first memory. Both of you see everything here.")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     // MARK: Journal card
 
     private func journalCard(_ entry: JournalEntry) -> some View {
@@ -125,9 +162,21 @@ struct MemoriesView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if !entry.media.isEmpty {
+                // Photos render inline; anything without stored data (voice
+                // stubs, old broken entries) stays a chip.
+                let photos = entry.media.filter { $0.storagePath != nil }
+                if !photos.isEmpty {
+                    ForEach(photos) { media in
+                        StoredImageView(path: media.storagePath!)
+                            .frame(height: 180)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                }
+                let chips = entry.media.filter { $0.storagePath == nil }
+                if !chips.isEmpty {
                     HStack(spacing: 8) {
-                        ForEach(entry.media) { media in
+                        ForEach(chips) { media in
                             mediaChip(media)
                         }
                     }
@@ -186,7 +235,9 @@ struct JournalComposerView: View {
     @State private var body_ = ""
     @State private var location = ""
     @State private var photoItems: [PhotosPickerItem] = []
+    @State private var photoDatas: [Data] = []
     @State private var isVoiceAttached = false
+    @State private var isSaving = false
 
     var body: some View {
         NavigationStack {
@@ -199,9 +250,9 @@ struct JournalComposerView: View {
                 }
                 Section("Attachments") {
                     PhotosPicker(selection: $photoItems, maxSelectionCount: 5,
-                                 matching: .any(of: [.images, .livePhotos, .videos])) {
-                        Label(photoItems.isEmpty ? "Add photos or video"
-                                                 : "\(photoItems.count) selected",
+                                 matching: .images) {
+                        Label(photoDatas.isEmpty ? "Add photos"
+                                                 : "\(photoDatas.count) photo\(photoDatas.count == 1 ? "" : "s") attached ✓",
                               systemImage: "photo.on.rectangle.angled")
                     }
                     Toggle(isOn: $isVoiceAttached) {
@@ -218,15 +269,41 @@ struct JournalComposerView: View {
             .navigationTitle("New Memory")
             .navigationBarTitleDisplayMode(.inline)
             .dismissableKeyboard()
+            // Downscale as soon as photos are picked so Save is fast.
+            .onChange(of: photoItems) { _, items in
+                Task {
+                    var datas: [Data] = []
+                    for item in items {
+                        if let raw = try? await item.loadTransferable(type: Data.self),
+                           let image = UIImage(data: raw),
+                           let jpeg = image.downscaled(maxDimension: 1600).jpegData(compressionQuality: 0.85) {
+                            datas.append(jpeg)
+                        }
+                    }
+                    photoDatas = datas
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(isSaving ? "Saving…" : "Save") {
                         Task {
-                            guard let me = model.user else { return }
-                            var media: [JournalMedia] = photoItems.map { _ in JournalMedia(kind: .photo) }
+                            guard let me = model.user, let rel = model.relationship else { return }
+                            isSaving = true
+                            // Photos are UPLOADED to shared storage and their
+                            // paths stored — previously only an empty "Photo"
+                            // chip was saved, so pictures could never be seen
+                            // again after adding them.
+                            var media: [JournalMedia] = []
+                            for data in photoDatas {
+                                let item = JournalMedia(kind: .photo)
+                                if let path = try? await model.services.relationship.uploadImage(
+                                    data, relationship: rel.id, fileName: "journal_\(item.id).jpg") {
+                                    media.append(JournalMedia(id: item.id, kind: .photo, storagePath: path))
+                                }
+                            }
                             if isVoiceAttached && model.premium.isPremium {
                                 media.append(JournalMedia(kind: .voice, durationSeconds: 0))
                             }
@@ -235,10 +312,11 @@ struct JournalComposerView: View {
                                 media: media,
                                 locationName: location.isEmpty ? nil : location))
                             await onSave()
+                            isSaving = false
                             dismiss()
                         }
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
         }

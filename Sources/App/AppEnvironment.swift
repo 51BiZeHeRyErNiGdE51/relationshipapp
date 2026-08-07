@@ -325,10 +325,19 @@ final class AppModel {
 
     /// Called by the onboarding flow. Solo usage is fully supported —
     /// the partner code can be entered later from the Home screen.
+    /// Set when the user skips the tutorial via ✕ — they jump straight to
+    /// pairing WITHOUT passing the onboarding paywall, so Home shows it once
+    /// right after they enter the app.
+    static let skippedTutorialKey = "missuo.onboarding.skippedTutorial"
+
     func completeOnboarding(partnerCode: String?) async {
         UserDefaults.standard.set(true, forKey: Self.onboardingCompletedKey)
-        // Paywall already shown in onboarding — don't immediately show again on Home.
-        UserDefaults.standard.set(true, forKey: "lovio.paywall.skipSessionStartOnce")
+        // Paywall already shown in onboarding — don't immediately show again
+        // on Home. Exception: tutorial skippers never saw it (✕ goes straight
+        // to pairing), so let the session-start paywall appear for them.
+        let skippedPaywall = UserDefaults.standard.bool(forKey: Self.skippedTutorialKey)
+        UserDefaults.standard.set(!skippedPaywall, forKey: "lovio.paywall.skipSessionStartOnce")
+        UserDefaults.standard.removeObject(forKey: Self.skippedTutorialKey)
         await ensureSession()
         if let code = partnerCode, !code.trimmingCharacters(in: .whitespaces).isEmpty {
             await joinRelationship(code: code)
@@ -383,10 +392,20 @@ final class AppModel {
             services.analytics.track(.relationshipActivated)
             Haptics.celebration()
             await ensureSession()
-            justPaired = true   // Home shows the "you're connected" celebration
+            // Home shows the "you're connected" celebration — once per couple.
+            if claimPairCelebration(for: rel.id) { justPaired = true }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// The full-screen pairing celebration fires exactly once per
+    /// relationship on this device — returns whether this call claimed it.
+    private func claimPairCelebration(for relationshipID: RelationshipID) -> Bool {
+        let key = "missuo.paired.celebrated.\(relationshipID)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return false }
+        UserDefaults.standard.set(true, forKey: key)
+        return true
     }
 
     func setAnniversary(_ date: Date) async {
@@ -404,12 +423,17 @@ final class AppModel {
         // Live pairing detection: re-pull the relationship every refresh so
         // the creator's phone notices the partner joining (and both phones
         // stay in sync on XP / love jar / streak).
+        // `hadRelationship` guards a cold-start race: an early background sync
+        // (FCM token arrival) can run before ensureSession loads the
+        // relationship — it must not mistake "not loaded yet" for "not paired"
+        // and replay the celebration on every launch.
+        let hadRelationship = relationship != nil
         let wasPaired = isPaired
         if let fresh = try? await services.relationship.currentRelationship(for: user.id) {
             relationship = fresh
             if fresh.status == .active, let partnerID = fresh.partnerID(of: user.id) {
                 partnerProfile = try? await services.relationship.profile(for: partnerID)
-                if !wasPaired {
+                if !wasPaired, hadRelationship, claimPairCelebration(for: fresh.id) {
                     justPaired = true
                     Haptics.celebration()
                     services.analytics.track(.relationshipActivated)
@@ -643,11 +667,16 @@ final class AppModel {
     }
 
     /// Central gamification pipeline: graph event → streak / XP / love score / companion.
-    private func recordEngagement(_ kind: RelationshipEventKind, nurture: Double) async {
+    /// `recordEvent: false` when the event document was already written
+    /// server-side (widget intents) — the push has fired; only gamify here.
+    private func recordEngagement(_ kind: RelationshipEventKind, nurture: Double,
+                                  recordEvent: Bool = true) async {
         guard var rel = relationship, let user else { return }
 
-        try? await services.relationship.record(
-            event: RelationshipEvent(kind: kind, actorID: user.id), relationship: rel.id)
+        if recordEvent {
+            try? await services.relationship.record(
+                event: RelationshipEvent(kind: kind, actorID: user.id), relationship: rel.id)
+        }
 
         // XP + companion growth
         rel.xp += Int(nurture) * 5
@@ -844,16 +873,27 @@ final class AppModel {
         snapshot.hasAnniversary = rel.anniversary != nil
         snapshot.isPaired = isPaired
         snapshot.nextAnniversaryDays = rel.daysUntilNextAnniversary
+        // Interactive widgets need these to reach the backend directly
+        // (heart/miss-you pushes must fire even while the app is killed).
+        AppGroup.defaults.set(rel.id, forKey: AppGroup.relationshipIDKey)
+        AppGroup.defaults.set(user.id, forKey: AppGroup.userIDKey)
         AppGroup.save(snapshot)
     }
 
     /// Interactive widgets queue actions while the app is closed; sync them here.
+    /// "_synced" kinds already reached the server from the widget itself (event
+    /// written + partner pushed) — only apply local gamification, never
+    /// re-record the event or the partner would get a duplicate push.
     func drainWidgetOutbox() async {
         for action in WidgetOutbox.drain() {
             services.analytics.track(.widgetInteraction(widget: action.kind, action: "tap"))
             switch action.kind {
             case "miss_you": await sendMissYou(source: "widget")
+            case "miss_you_synced":
+                services.analytics.track(.missYouSent(source: "widget"))
+                await recordEngagement(.missYouSent, nurture: 2, recordEvent: false)
             case "heart_tap": await recordEngagement(.heartTap, nurture: 1)
+            case "heart_tap_synced": await recordEngagement(.heartTap, nurture: 1, recordEvent: false)
             default: break
             }
         }
@@ -868,6 +908,11 @@ final class AppModel {
 // IMPORTANT: CLLocationManager.delegate is weak. The helper MUST be retained
 // for the duration of the request or the callback never fires (this is why
 // Distance stayed empty even after both partners "allowed" location).
+//
+// EQUALLY IMPORTANT: CLLocationManager must be created and used on a thread
+// with a run loop (the main thread). These statics used to be nonisolated
+// async — they hopped to a background executor, the delegate never fired,
+// and every request "timed out" to nil. @MainActor fixes that.
 
 final class OneShotLocation: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
@@ -876,6 +921,7 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
     /// Keeps the helper alive while waiting for Core Location (delegate is weak).
     private static var inflight: OneShotLocation?
 
+    @MainActor
     static func request() async -> CLLocationCoordinate2D? {
         if inflight != nil { return nil }
         let helper = OneShotLocation()
@@ -896,6 +942,7 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
     }
 
     /// Shows the system dialog if needed and waits for the user's answer.
+    @MainActor
     static func requestPermissionIfNeeded() async -> CLAuthorizationStatus {
         let helper = OneShotLocation()
         inflight = helper

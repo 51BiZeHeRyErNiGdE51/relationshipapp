@@ -43,6 +43,8 @@ targets:
       - path: Sources
       - path: Resources/Assets.xcassets
         type: folder.assetcatalog
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
     dependencies:
       - target: LovioWidgets
       - package: Firebase
@@ -137,6 +139,8 @@ targets:
       - path: Sources/Shared
       - path: Resources/Assets.xcassets
         type: folder.assetcatalog
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
     dependencies: []
     settings:
       base:

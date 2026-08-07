@@ -649,6 +649,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                LanguageMenu(compact: false)
+            } header: {
+                Text("Language")
+            } footer: {
+                Text("English, Français, Deutsch, 한국어, Português, Español. Applies the next time Missuo opens.")
+            }
+
             Section("Privacy") {
                 Text("Your journal, answers and moods are visible only to the two of you. iCloud backup keeps private notes on your device account.")
                     .font(Lovio.Type_.caption)
