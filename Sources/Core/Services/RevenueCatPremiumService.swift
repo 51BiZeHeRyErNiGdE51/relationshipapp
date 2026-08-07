@@ -81,20 +81,55 @@ struct RevenueCatPremiumService: PremiumService {
             return try await DemoPremiumService().offers()
         }
         let offerings = try await Purchases.shared.offerings()
-        guard let current = offerings.current else { return [] }
-        return current.availablePackages.map { package in
-            let product = package.storeProduct
-            let months: Decimal = package.packageType == .annual ? 12 : 1
-            let trialDays = product.introductoryDiscount
-                .flatMap { $0.paymentMode == .freeTrial ? $0.subscriptionPeriod.value * 7 : 0 } ?? 0
-            return PaywallOffer(
-                id: package.identifier,
-                title: package.packageType == .annual ? "Yearly" : "Monthly",
-                monthlyEquivalent: product.price / months,
-                totalPrice: product.price,
-                currencyCode: product.currencyCode ?? "USD",
-                trialDays: trialDays,
-                isFeatured: package.packageType == .annual)
+        guard let current = offerings.current, !current.availablePackages.isEmpty else {
+            // Dashboard has no "Current" offering (yet) — keep the paywall
+            // renderable with the local fake flow instead of a dead screen.
+            // purchase() falls back the same way for these offer IDs.
+            print("RevenueCat: no current offering with packages — using demo offers")
+            return try await DemoPremiumService().offers()
+        }
+        return current.availablePackages.map(Self.offer(from:))
+    }
+
+    /// Package → PaywallOffer with honest labels for every package type.
+    private static func offer(from package: Package) -> PaywallOffer {
+        let product = package.storeProduct
+        let title: String
+        let months: Decimal
+        switch package.packageType {
+        case .annual: title = "Yearly"; months = 12
+        case .sixMonth: title = "6 Months"; months = 6
+        case .threeMonth: title = "3 Months"; months = 3
+        case .twoMonth: title = "2 Months"; months = 2
+        case .monthly: title = "Monthly"; months = 1
+        case .weekly: title = "Weekly"; months = Decimal(7) / Decimal(30)
+        // Lifetime: per-week framing amortized over an assumed 3 years.
+        case .lifetime: title = "Lifetime"; months = 36
+        default:
+            title = product.localizedTitle.isEmpty ? "Premium" : product.localizedTitle
+            months = 1
+        }
+        return PaywallOffer(
+            id: package.identifier,
+            title: title,
+            monthlyEquivalent: product.price / months,
+            totalPrice: product.price,
+            currencyCode: product.currencyCode ?? "USD",
+            trialDays: trialDays(of: product),
+            isFeatured: package.packageType == .annual || package.packageType == .lifetime)
+    }
+
+    /// Free-trial length in DAYS regardless of how the store expresses the
+    /// period (the old math assumed weeks — a 7-day trial showed as 49 days).
+    private static func trialDays(of product: StoreProduct) -> Int {
+        guard let intro = product.introductoryDiscount, intro.paymentMode == .freeTrial
+        else { return 0 }
+        let period = intro.subscriptionPeriod
+        switch period.unit {
+        case .day: return period.value
+        case .week: return period.value * 7
+        case .month: return period.value * 30
+        case .year: return period.value * 365
         }
     }
 
@@ -107,15 +142,10 @@ struct RevenueCatPremiumService: PremiumService {
         let offerings = try await Purchases.shared.offerings()
         guard let package = offerings.offering(identifier: "secondary")?.availablePackages.first
         else { return nil }
-        let product = package.storeProduct
-        let months: Decimal = package.packageType == .annual ? 12 : 1
-        return PaywallOffer(id: package.identifier,
-                            title: package.packageType == .annual ? "Yearly — special offer" : "Special offer",
-                            monthlyEquivalent: product.price / months,
-                            totalPrice: product.price,
-                            currencyCode: product.currencyCode ?? "USD",
-                            trialDays: 0,
-                            isFeatured: true)
+        var offer = Self.offer(from: package)
+        offer.title += " — special offer"
+        offer.isFeatured = true
+        return offer
     }
 
     func purchase(offerID: String, me: UserID, relationship: RelationshipID?) async throws -> PremiumState {
@@ -125,8 +155,13 @@ struct RevenueCatPremiumService: PremiumService {
         let offerings = try await Purchases.shared.offerings()
         let allPackages = (offerings.current?.availablePackages ?? [])
             + (offerings.offering(identifier: "secondary")?.availablePackages ?? [])
-        guard let package = allPackages.first(where: { $0.identifier == offerID })
-        else { return .free }
+        guard let package = allPackages.first(where: { $0.identifier == offerID }) else {
+            // The offer on screen came from the demo fallback (no Current
+            // offering configured yet) — complete it as a fake purchase so
+            // the button always works during setup.
+            print("RevenueCat: package \(offerID) not found — demo purchase fallback")
+            return try await DemoPremiumService().purchase(offerID: offerID, me: me, relationship: relationship)
+        }
 
         let result = try await Purchases.shared.purchase(package: package)
         guard !result.userCancelled,

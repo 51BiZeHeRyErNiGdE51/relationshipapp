@@ -283,6 +283,12 @@ struct PaywallView: View {
         offer.id.contains("yearly") || offer.title.localizedCaseInsensitiveContains("year")
     }
 
+    /// "/year", "/month" — or " once" for lifetime (one-time) products.
+    private func priceSuffix(_ offer: PaywallOffer) -> String {
+        if offer.title.localizedCaseInsensitiveContains("lifetime") { return " once" }
+        return isYearly(offer) ? "/year" : "/month"
+    }
+
     private func offerRow(_ offer: PaywallOffer) -> some View {
         Button {
             selected = offer
@@ -317,7 +323,7 @@ struct PaywallView: View {
                 // Full price leads (App Review compliance); our per-person
                 // framing is the caption underneath.
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))\(isYearly(offer) ? "/year" : "/month")")
+                    Text("\(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))\(priceSuffix(offer))")
                         .font(.system(.headline, design: .rounded, weight: .heavy))
                         .foregroundStyle(.white)
                     Text("≈ \(offer.formattedPerWeekPerPerson()) /week /person")
