@@ -16,3 +16,4 @@ Sources/App/GoogleService-Info.plist
 # macOS
 .DS_Store
 firebase-debug.log
+*.p8
