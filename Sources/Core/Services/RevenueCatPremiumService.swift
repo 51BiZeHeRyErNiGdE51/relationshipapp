@@ -100,26 +100,42 @@ struct RevenueCatPremiumService: PremiumService {
         }
         let offerings = try await Purchases.shared.offerings()
         guard let current = offerings.current, !current.availablePackages.isEmpty else {
-            // Dashboard has no "Current" offering (yet) — keep the paywall
-            // renderable with the local fake flow instead of a dead screen.
-            // purchase() falls back the same way for these offer IDs.
             print("RevenueCat: no current offering with packages — using demo offers")
             return try await DemoPremiumService().offers()
         }
-        // The decline-offer package lives in the same offering (Yearly_2) —
-        // never show it on the FIRST paywall. Most expensive plan leads.
+        // Paywall 1 ONLY: yearly_1 + monthly. yearly_2 is reserved for the
+        // decline / secondary paywall — never list it here.
         return current.availablePackages
             .filter { !Self.isSecondaryPackage($0) }
             .map(Self.offer(from:))
-            .sorted { $0.totalPrice > $1.totalPrice }
+            .sorted { lhs, rhs in
+                // Yearly (featured) first, then monthly.
+                if lhs.isFeatured != rhs.isFeatured { return lhs.isFeatured && !rhs.isFeatured }
+                return lhs.totalPrice > rhs.totalPrice
+            }
     }
 
-    /// The "wait, don't go" package: either any package in a dedicated
-    /// "secondary" offering, or — as configured in our dashboard — a package
-    /// in the main offering named like "Yearly_2" / "…second…".
+    /// yearly_2 / "second" / product id containing yearly_2 — the decline offer.
+    /// Checks package id AND store product id (RevenueCat package slots can be
+    /// `$rc_annual` while the product is still `yearly_2`).
     private static func isSecondaryPackage(_ package: Package) -> Bool {
-        let id = package.identifier.lowercased()
-        return id.hasSuffix("_2") || id.contains("second")
+        let ids = [
+            package.identifier.lowercased(),
+            package.storeProduct.productIdentifier.lowercased(),
+        ]
+        return ids.contains { id in
+            id == "yearly_2" || id.hasSuffix("_2") || id.contains("second")
+                || id.contains("yearly2") || id.contains("yearly_2")
+        }
+    }
+
+    /// True for the main yearly (yearly_1) — used as the discount anchor.
+    private static func isPrimaryYearly(_ package: Package) -> Bool {
+        if isSecondaryPackage(package) { return false }
+        let product = package.storeProduct
+        if product.subscriptionPeriod?.unit == .year { return true }
+        let id = product.productIdentifier.lowercased()
+        return id.contains("yearly") && !id.contains("2")
     }
 
     /// Package → PaywallOffer. Labels/math come from the PRODUCT's real
@@ -180,13 +196,21 @@ struct RevenueCatPremiumService: PremiumService {
             return try await DemoPremiumService().secondaryOffer()
         }
         let offerings = try await Purchases.shared.offerings()
-        // Preferred: a dedicated "secondary" offering. Fallback: the
-        // "Yearly_2"-style package inside the current offering.
         let package = offerings.offering(identifier: "secondary")?.availablePackages.first
             ?? offerings.current?.availablePackages.first(where: Self.isSecondaryPackage)
         guard let package else { return nil }
+
+        // Anchor = yearly_1 full price (for SAVE % and strikethrough).
+        let anchor = offerings.current?.availablePackages
+            .first(where: Self.isPrimaryYearly)
+            .map { $0.storeProduct.price }
+
         var offer = Self.offer(from: package)
         offer.isFeatured = true
+        // yearly_2 never has a free trial — even if the store product was
+        // misconfigured with one, the decline paywall must not advertise it.
+        offer.trialDays = 0
+        offer.anchorPrice = anchor
         return offer
     }
 

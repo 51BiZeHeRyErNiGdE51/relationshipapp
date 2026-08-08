@@ -217,7 +217,7 @@ struct PaywallView: View {
                 .multilineTextAlignment(.center)
                 .minimumScaleFactor(0.7)
 
-            Text("One time only: \(offer.title.lowercased()) — that's \(offer.formattedPerWeekPerPerson()) per week, per person. Still covers both of you.")
+            Text("One time only — \(offer.formattedPerWeekPerPerson()) per week, per person. Still covers both of you.")
                 .font(Lovio.Type_.body)
                 .foregroundStyle(.white.opacity(0.85))
                 .multilineTextAlignment(.center)
@@ -236,16 +236,18 @@ struct PaywallView: View {
             }
 
             VStack(spacing: 4) {
-                // Anchor: regular yearly price struck through + concrete % off.
-                if let full = offers.first(where: isYearly)?.totalPrice,
-                   full > offer.totalPrice {
+                // yearly_1 struck through + SAVE % computed from yearly_1 vs yearly_2.
+                let full = offer.anchorPrice
+                    ?? offers.first(where: isYearly)?.totalPrice
+                if let full, full > offer.totalPrice {
                     HStack(spacing: 8) {
                         Text(full.formatted(.currency(code: offer.currencyCode)))
                             .font(.system(.title3, design: .rounded, weight: .bold))
                             .strikethrough()
                             .foregroundStyle(.white.opacity(0.55))
-                        if let percent = discountPercent(offer, against: full) {
-                            Text("-\(percent)%")
+                        if let percent = offer.discountPercentVsAnchor
+                            ?? discountPercent(offer, against: full) {
+                            Text("SAVE \(percent)%")
                                 .font(.system(size: 12, weight: .heavy, design: .rounded))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
@@ -257,9 +259,13 @@ struct PaywallView: View {
                 Text(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))
                     .font(.system(size: 40, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
-                Text("per year · both partners included")
+                Text("per year · both partners included · no free trial")
                     .font(Lovio.Type_.caption)
                     .foregroundStyle(.white.opacity(0.7))
+                Text("≈ \(offer.formattedPerWeekPerPerson()) /week /person")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.top, 2)
             }
             .padding(.vertical, 18)
             .frame(maxWidth: .infinity)

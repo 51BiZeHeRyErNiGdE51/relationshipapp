@@ -125,16 +125,20 @@ public struct PremiumState: Sendable, Equatable {
 }
 
 public struct PaywallOffer: Sendable, Identifiable, Equatable {
-    public var id: String              // store product id
+    public var id: String              // store / package id
     public var title: String           // "Yearly"
     public var monthlyEquivalent: Decimal
     public var totalPrice: Decimal
     public var currencyCode: String
     public var trialDays: Int
     public var isFeatured: Bool
+    /// Full-price yearly (yearly_1) used to compute SAVE % on the decline
+    /// paywall. Nil for main paywall offers.
+    public var anchorPrice: Decimal?
 
     public init(id: String, title: String, monthlyEquivalent: Decimal, totalPrice: Decimal,
-                currencyCode: String, trialDays: Int, isFeatured: Bool) {
+                currencyCode: String, trialDays: Int, isFeatured: Bool,
+                anchorPrice: Decimal? = nil) {
         self.id = id
         self.title = title
         self.monthlyEquivalent = monthlyEquivalent
@@ -142,16 +146,25 @@ public struct PaywallOffer: Sendable, Identifiable, Equatable {
         self.currencyCode = currencyCode
         self.trialDays = trialDays
         self.isFeatured = isFeatured
+        self.anchorPrice = anchorPrice
     }
 
     /// The core Lovio pricing frame: price ÷ weeks ÷ 2 partners.
-    /// "$9.99/month" becomes "only $1.25 per week per person".
     public var perWeekPerPerson: Decimal {
         (monthlyEquivalent / Decimal(4.0)) / Decimal(2)
     }
 
     public func formattedPerWeekPerPerson(locale: Locale = .current) -> String {
         perWeekPerPerson.formatted(.currency(code: currencyCode).locale(locale).precision(.fractionLength(2)))
+    }
+
+    /// % off vs yearly_1 (or any provided anchor). Nil under 5%.
+    public var discountPercentVsAnchor: Int? {
+        guard let full = anchorPrice, full > 0, totalPrice < full else { return nil }
+        let fraction = 1 - NSDecimalNumber(decimal: totalPrice).doubleValue
+            / NSDecimalNumber(decimal: full).doubleValue
+        let percent = Int((fraction * 100).rounded())
+        return percent >= 5 ? percent : nil
     }
 }
 
