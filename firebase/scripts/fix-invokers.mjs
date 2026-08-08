@@ -23,6 +23,7 @@ const SERVICES = {
   oneventcreated: EVENTARC_INVOKERS,
   onanswercreated: EVENTARC_INVOKERS,
   onmoodlogged: EVENTARC_INVOKERS,
+  onpremiumchanged: EVENTARC_INVOKERS,
   widgetaction: ["allUsers"],
 };
 

@@ -634,13 +634,24 @@ struct SettingsView: View {
                 Button("Restore purchases") {
                     Task { await model.restorePurchases() }
                 }
-                if model.premium.isPremium, !RevenueCatBootstrap.isConfigured {
-                    // Fake-purchase mode: lets you flip back to the free flow.
+                #if DEBUG
+                if model.premium.isPremium {
+                    // Test builds: clears local fake premium + the shared
+                    // Firestore mirror so the partner also drops to Free.
+                    // A real RevenueCat Test Store entitlement also needs the
+                    // customer deleted in the RevenueCat dashboard.
                     Button("Switch back to Free (test)", role: .destructive) {
                         DemoPremiumService.resetFakePurchase()
-                        Task { await model.refreshPremium() }
+                        Task {
+                            if let rel = model.relationship {
+                                await RevenueCatPremiumService.clearMirror(on: rel.id)
+                            }
+                            AppGroup.defaults.set(false, forKey: "missuo.widget.isPremium")
+                            await model.refreshPremium()
+                        }
                     }
                 }
+                #endif
             }
 
             Section("Notifications") {

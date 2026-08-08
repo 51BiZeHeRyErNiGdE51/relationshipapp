@@ -253,6 +253,11 @@ struct FirestoreRelationshipService: RelationshipService {
            let code = rel.inviteCode?.value {
             try? await db.collection("invites").document(code).delete()
         }
+        // Drop the shared premium mirror so the non-purchaser loses access
+        // immediately. The purchaser's RevenueCat entitlement survives and
+        // re-mirrors into their next relationship on reconnection.
+        try? await db.collection("relationships").document(id)
+            .collection("premium").document("state").delete()
         try await db.collection("relationships").document(id).updateData([
             "status": RelationshipStatus.ended.rawValue,
             "endedAt": Timestamp(date: .now),
@@ -332,11 +337,13 @@ struct FirestoreQuestionService: QuestionService {
         return assemble(question, answers: answers, me: me)
     }
 
-    func submitAnswer(_ text: String, rating: Int?, question: DailyQuestion,
-                      relationship: RelationshipID, author: UserID) async throws -> DailyQuestionState {
+    func submitAnswer(_ text: String, rating: Int?, selectedUserID: UserID?,
+                      question: DailyQuestion, relationship: RelationshipID,
+                      author: UserID) async throws -> DailyQuestionState {
         let answer = QuestionAnswer(id: "\(question.id)_\(author)",
                                     questionID: question.id, authorID: author, text: text,
-                                    rating: rating, questionText: question.text)
+                                    rating: rating, selectedUserID: selectedUserID,
+                                    questionText: question.text)
         try db.collection("relationships").document(relationship)
             .collection("answers").document(answer.id).setData(from: answer)
         let answers = try await fetchAnswers(question.id, relationship: relationship)

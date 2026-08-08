@@ -71,8 +71,9 @@ public protocol RelationshipService: Sendable {
 
 public protocol QuestionService: Sendable {
     func todayState(relationship: RelationshipID, me: UserID) async throws -> DailyQuestionState
-    func submitAnswer(_ text: String, rating: Int?, question: DailyQuestion,
-                      relationship: RelationshipID, author: UserID) async throws -> DailyQuestionState
+    func submitAnswer(_ text: String, rating: Int?, selectedUserID: UserID?,
+                      question: DailyQuestion, relationship: RelationshipID,
+                      author: UserID) async throws -> DailyQuestionState
     func history(relationship: RelationshipID, limit: Int) async throws -> [DailyQuestionState]
 }
 

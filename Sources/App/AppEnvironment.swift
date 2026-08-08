@@ -393,7 +393,10 @@ final class AppModel {
         services.analytics.track(.relationshipEnded)
         partnerProfile = nil
         relationship = try? await services.relationship.createRelationship(creator: me.id, anniversary: nil)
+        // Purchaser keeps RC/demo entitlement (remirrors into the new pending
+        // relationship). Inheritor becomes free — mirror was deleted on end.
         premium = await services.premium.premiumState(relationship: relationship, me: me.id)
+        publishWidgetSnapshot()
         await refreshToday()
     }
 
@@ -415,6 +418,9 @@ final class AppModel {
             services.analytics.track(.relationshipActivated)
             Haptics.celebration()
             await ensureSession()
+            // Purchaser reconnecting: remirror THEIR entitlement into this
+            // newly shared relationship so the partner unlocks immediately.
+            await refreshPremium()
             // Home shows the "you're connected" celebration — once per couple.
             if claimPairCelebration(for: rel.id) { justPaired = true }
         } catch {
@@ -452,16 +458,38 @@ final class AppModel {
         // and replay the celebration on every launch.
         let hadRelationship = relationship != nil
         let wasPaired = isPaired
-        if let fresh = try? await services.relationship.currentRelationship(for: user.id) {
-            relationship = fresh
-            if fresh.status == .active, let partnerID = fresh.partnerID(of: user.id) {
-                partnerProfile = try? await services.relationship.profile(for: partnerID)
-                if !wasPaired, hadRelationship, claimPairCelebration(for: fresh.id) {
-                    justPaired = true
-                    Haptics.celebration()
-                    services.analytics.track(.relationshipActivated)
+        let previousRelID = relationship?.id
+        do {
+            if let fresh = try await services.relationship.currentRelationship(for: user.id) {
+                relationship = fresh
+                if fresh.status == .active, let partnerID = fresh.partnerID(of: user.id) {
+                    partnerProfile = try? await services.relationship.profile(for: partnerID)
+                    if !wasPaired, hadRelationship, claimPairCelebration(for: fresh.id) {
+                        justPaired = true
+                        Haptics.celebration()
+                        services.analytics.track(.relationshipActivated)
+                    }
                 }
+            } else if hadRelationship {
+                // The partner ended the relationship from THEIR phone. Drop the
+                // stale couple state and mint a fresh pending relationship (new
+                // invite code) so this phone doesn't keep showing a partner —
+                // or their inherited premium — that no longer exists.
+                partnerProfile = nil
+                relationship = try? await services.relationship
+                    .createRelationship(creator: user.id, anniversary: nil)
             }
+        } catch {
+            // Offline / transient — keep showing the last known state.
+        }
+
+        // Premium belongs to the relationship (purchaser + mirror doc), so any
+        // change of relationship identity re-resolves it: inheritors lose it
+        // when the couple splits, purchasers keep their own entitlement and
+        // re-mirror it into the NEW relationship on reconnection.
+        if relationship?.id != previousRelID {
+            premium = await services.premium.premiumState(relationship: relationship, me: user.id)
+            publishWidgetSnapshot()
         }
         guard let rel = relationship else { return }
 
@@ -473,13 +501,15 @@ final class AppModel {
         questionState = await question
         latestMoods = await moods ?? [:]
         upcomingDates = await dates ?? []
-        // Premium is shared: when the PARTNER subscribes, their entitlement is
-        // mirrored into the relationship — poll it while we're free so this
-        // phone unlocks within seconds instead of on the next cold start.
-        if !premium.isPremium {
-            let fresh = await services.premium.premiumState(relationship: rel, me: user.id)
-            if fresh.isPremium {
-                premium = fresh
+        // Premium is shared on the relationship. Always re-resolve so:
+        // - free partner unlocks when the purchaser subscribes
+        // - inheritor drops to free when the couple splits / entitlement expires
+        // - purchaser remirrors into a newly created relationship
+        let wasPremium = premium.isPremium
+        let fresh = await services.premium.premiumState(relationship: rel, me: user.id)
+        if fresh != premium {
+            premium = fresh
+            if fresh.isPremium, fresh.inheritedFromPartner, !wasPremium {
                 services.analytics.track(.premiumInherited)
             }
         }
@@ -640,11 +670,13 @@ final class AppModel {
 
     // MARK: Actions (each one feeds the relationship graph + gamification)
 
-    func answerTodayQuestion(_ text: String, rating: Int? = nil) async {
+    func answerTodayQuestion(_ text: String, rating: Int? = nil,
+                             selectedUserID: UserID? = nil) async {
         guard let rel = relationship, let user, let state = questionState else { return }
         do {
             questionState = try await services.questions.submitAnswer(
-                text, rating: rating, question: state.question, relationship: rel.id, author: user.id)
+                text, rating: rating, selectedUserID: selectedUserID,
+                question: state.question, relationship: rel.id, author: user.id)
             services.analytics.track(.questionAnswered(category: state.question.category.rawValue))
             if questionState?.isRevealed == true {
                 services.analytics.track(.answersRevealed)
@@ -765,6 +797,11 @@ final class AppModel {
                 offerID: offer.id, me: user.id, relationship: relationship?.id)
             if state.isPremium {
                 premium = state
+                // Belt-and-suspenders: remirror so the partner unlocks even if
+                // the purchase path used the demo fallback.
+                if let rel = relationship, let ent = state.entitlement {
+                    await RevenueCatPremiumService.mirror(ent, to: rel.id)
+                }
                 services.analytics.track(offer.trialDays > 0
                     ? .trialStarted(offerID: offer.id)
                     : .purchaseCompleted(offerID: offer.id))
@@ -789,6 +826,9 @@ final class AppModel {
             premium = state
             services.analytics.track(.purchaseRestored)
         }
+        // Re-resolve through premiumState so a restored entitlement gets
+        // mirrored into the relationship — the partner inherits it too.
+        await refreshPremium()
     }
 
     // MARK: Widgets — shared content (photo + note reach BOTH partners)
@@ -918,6 +958,8 @@ final class AppModel {
         // (heart/miss-you pushes must fire even while the app is killed).
         AppGroup.defaults.set(rel.id, forKey: AppGroup.relationshipIDKey)
         AppGroup.defaults.set(user.id, forKey: AppGroup.userIDKey)
+        // Fast unlock path for widgets that still hold a stale timeline.
+        AppGroup.defaults.set(premium.isPremium, forKey: "missuo.widget.isPremium")
         AppGroup.save(snapshot)
     }
 

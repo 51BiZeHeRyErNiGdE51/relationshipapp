@@ -29,15 +29,15 @@ public enum QuestionCategory: String, Codable, CaseIterable, Sendable {
     public var isOptIn: Bool { self == .spicy }
 }
 
-/// How a daily question is answered. Rated statements work much better for
-/// long-distance couples: three-second answers from anywhere, and the ratings
-/// are comparable — which powers the couple's alignment score and AI context.
+/// How a daily question is answered.
 public enum QuestionKind: String, Codable, Sendable {
-    /// Agree / disagree statement — "Pineapple belongs on pizza."
+    /// Pick one of the two partners — "Who snores louder?" Answers show names.
+    case who
+    /// Agree / disagree statement — kept for a little variety.
     case thumbs
-    /// Rate the statement 1–5 — "I'd move abroad if you asked me to."
+    /// Rate the statement 1–5.
     case scale
-    /// Classic free-text question, kept in the mix for depth.
+    /// Classic free-text question, kept for depth.
     case open
 }
 
@@ -73,21 +73,25 @@ public struct QuestionAnswer: Codable, Identifiable, Hashable, Sendable {
     public var text: String
     public var answeredAt: Date
     /// Numeric response for rated questions: thumbs → 1 (agree) / 0 (disagree),
-    /// scale → 1…5. Nil for free-text answers.
+    /// scale → 1…5, who → unused (see selectedUserID). Nil for free-text.
     public var rating: Int?
+    /// For `.who` questions: the partner UserID the answerer picked.
+    public var selectedUserID: UserID?
     /// Denormalized question text so server-side AI can build context without
     /// shipping the question bank to the backend.
     public var questionText: String?
 
     public init(id: String = UUID().uuidString, questionID: String,
                 authorID: UserID, text: String, answeredAt: Date = .now,
-                rating: Int? = nil, questionText: String? = nil) {
+                rating: Int? = nil, selectedUserID: UserID? = nil,
+                questionText: String? = nil) {
         self.id = id
         self.questionID = questionID
         self.authorID = authorID
         self.text = text
         self.answeredAt = answeredAt
         self.rating = rating
+        self.selectedUserID = selectedUserID
         self.questionText = questionText
     }
 }
@@ -115,14 +119,30 @@ public struct DailyQuestionState: Sendable {
 public enum QuestionAlignment {
     /// Match percent for a single revealed question, if both sides rated it.
     public static func matchPercent(_ state: DailyQuestionState) -> Int? {
-        guard state.revealedAnswers.count == 2,
-              let a = state.revealedAnswers[0].rating,
-              let b = state.revealedAnswers[1].rating else { return nil }
+        guard state.revealedAnswers.count == 2 else { return nil }
         switch state.question.format {
-        case .thumbs: return a == b ? 100 : 0
-        case .scale:  return max(0, 100 - abs(a - b) * 25)
-        case .open:   return nil
+        case .who:
+            // Same person picked by both → perfect sync (playful agreement).
+            guard let a = state.revealedAnswers[0].selectedUserID,
+                  let b = state.revealedAnswers[1].selectedUserID else { return nil }
+            return a == b ? 100 : 0
+        case .thumbs:
+            guard let a = state.revealedAnswers[0].rating,
+                  let b = state.revealedAnswers[1].rating else { return nil }
+            return a == b ? 100 : 0
+        case .scale:
+            guard let a = state.revealedAnswers[0].rating,
+                  let b = state.revealedAnswers[1].rating else { return nil }
+            return max(0, 100 - abs(a - b) * 25)
+        case .open: return nil
         }
+    }
+
+    public static func verdict(forWhoMatch percent: Int, sameName: String?) -> String {
+        if percent == 100, let name = sameName {
+            return "You both said \(name)! 😄"
+        }
+        return percent == 100 ? "Perfectly in sync 💞" : "Split vote — time to settle this 👀"
     }
 
     /// Average alignment across revealed history. Nil until there's at least

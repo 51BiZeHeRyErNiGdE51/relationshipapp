@@ -46,14 +46,10 @@ struct HomeView: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
-        // No big "Today" title or date banner — the greeting header carries
-        // the context; the nav bar only hosts the Miss You button.
+        // No nav bar at all on Home — the greeting header row (logo +
+        // greeting + Miss You) is the top of the screen, no dead space.
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                missYouButton
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showMoodSheet) { MoodSheet() }
         .sheet(isPresented: $showQuestion) { DailyQuestionView() }
         .sheet(isPresented: $showJoinSheet) { JoinPartnerSheet() }
@@ -355,19 +351,19 @@ struct HomeView: View {
 
     // MARK: Header
 
+    // Single compact top row: logo + greeting + Miss You. Premium badge lives
+    // in Us → Settings — no crown chip and no empty nav-bar row above.
     private var header: some View {
-        HStack(spacing: 14) {
-            MissuoLogoMark(size: 40, shadow: false)
+        HStack(alignment: .center, spacing: 10) {
+            MissuoLogoMark(size: 36, shadow: false)
             Text(greeting)
                 .font(Lovio.Type_.headline)
-            Spacer()
-            if model.premium.isPremium {
-                Label("Premium", systemImage: "crown.fill")
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(Lovio.Palette.gold)
-            }
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 8)
+            missYouButton
         }
-        .padding(.top, 4)
+        .padding(.top, 0)
     }
 
     private var greeting: String {

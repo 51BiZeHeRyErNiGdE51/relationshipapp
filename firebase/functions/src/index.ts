@@ -11,7 +11,7 @@
  * Firebase console → Cloud Messaging.
  */
 
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -26,6 +26,7 @@ import {
   widgetPhotoPush,
   meetupPush,
   tomorrowEventPush,
+  premiumUnlockedPush,
 } from "./pushCopy";
 
 admin.initializeApp();
@@ -248,6 +249,36 @@ export const widgetAction = onRequest({ invoker: "public", cors: true }, async (
   console.log(`widgetAction: ${kind} by ${userID} in ${relationshipID}`);
   res.json({ ok: true });
 });
+
+/**
+ * Premium mirror written → tell the partner immediately.
+ *
+ * The iOS app mirrors the purchaser's entitlement into
+ * relationships/{relID}/premium/state after purchase/restore/refresh. The
+ * partner's phone polls this doc, but polling only runs while the app is
+ * open — this push (alert + content-available) unlocks them instantly even
+ * from the lock screen, and gives us server-side logs to debug inheritance.
+ */
+export const onPremiumChanged = onDocumentWritten(
+  "relationships/{relID}/premium/state",
+  async (event) => {
+    const after = event.data?.after?.data();
+    if (!after) return; // mirror deleted — nothing to announce
+    const before = event.data?.before?.data();
+    // The app re-mirrors on every launch; only announce a real change.
+    if (before?.purchaserID === after.purchaserID && before?.productID === after.productID) return;
+
+    const purchaser = after.purchaserID as string;
+    const partner = await partnerOf(event.params.relID, purchaser);
+    if (!partner) {
+      console.log(`onPremiumChanged: no partner yet in ${event.params.relID}`);
+      return;
+    }
+    const name = await nameOf(purchaser);
+    const lang = await langOf(partner);
+    const copy = premiumUnlockedPush(name, lang);
+    await push(partner, copy.title, copy.body, { sync: "premium" });
+  });
 
 // ---------------------------------------------------------------------------
 // AI Coach — DeepSeek, strictly server-side.

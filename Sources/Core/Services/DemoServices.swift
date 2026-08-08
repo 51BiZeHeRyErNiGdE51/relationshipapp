@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseFirestore
 
 // MARK: - Demo backend
 //
@@ -154,61 +155,66 @@ public enum QuestionBank {
         return q
     }
 
-    /// Built for distance: most questions are statements you rate in seconds —
-    /// thumbs (agree/disagree) or 1–5 — so both sides can answer from anywhere
-    /// and the ratings feed the couple's alignment score. A few open questions
-    /// stay in rotation for depth.
+    /// Mostly playful "who" questions — tap your name or theirs, both answers
+    /// unlock together. A few thumbs / open questions stay for variety.
     public static let all: [DailyQuestion] = {
+        func w(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
+            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .who)
+        }
         func t(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
             DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .thumbs)
-        }
-        func s(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
-            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .scale)
         }
         func q(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
             DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .open)
         }
         return [
-            // Thumbs — agree or disagree, no typing needed.
-            t("Pineapple belongs on pizza.", .funny),
-            t("Texting back instantly is attractive.", .communication),
-            t("A lazy Sunday in bed beats a big night out.", .habits),
-            t("We should have a strict no-phones rule on dates.", .values),
-            t("Surprise visits are better than planned ones.", .romantic),
-            t("It's okay to share passwords with your partner.", .deep),
-            t("Long-distance actually made us stronger.", .deep),
-            t("Our first video call of the day should be mandatory.", .communication),
-            t("A small gift for no reason beats a big birthday gift.", .loveLanguages),
-            t("We'd survive a two-week road trip without fighting.", .travel),
-            t("Breakfast food is acceptable at any hour.", .funny),
-            t("Jealousy in small doses is healthy.", .conflict, premium: true),
-            t("We should get matching tattoos someday.", .future),
+            // Who — answers are Partner A or Partner B (shown as real names).
+            w("Who snores louder?", .funny),
+            w("Who eats the last cookie without asking?", .funny),
+            w("Who said \"I love you\" first?", .romantic),
+            w("Who is worse at answering texts?", .communication),
+            w("Who packs for a trip at the last minute?", .habits),
+            w("Who would survive longer on a deserted island?", .funny),
+            w("Who falls asleep first during a movie?", .habits),
+            w("Who steals the blankets?", .funny),
+            w("Who is the better cook?", .habits),
+            w("Who cries more at movies?", .romantic),
+            w("Who starts the most arguments?", .conflict),
+            w("Who apologizes first after a fight?", .conflict),
+            w("Who is more stubborn?", .conflict, premium: true),
+            w("Who has the better music taste?", .funny),
+            w("Who would get lost even with GPS?", .travel),
+            w("Who spends more money shopping?", .money),
+            w("Who is more romantic?", .romantic),
+            w("Who plans better dates?", .romantic),
+            w("Who is more likely to adopt a pet on impulse?", .family),
+            w("Who is the morning person?", .habits),
+            w("Who is more competitive?", .goals),
+            w("Who remembers anniversaries better?", .loveLanguages),
+            w("Who gives better hugs?", .loveLanguages),
+            w("Who would win in a pillow fight?", .funny),
+            w("Who is more likely to send a \"miss you\" first?", .romantic),
+            w("Who talks more on video calls?", .communication),
+            w("Who is the better driver?", .travel),
+            w("Who would forget an anniversary?", .funny),
+            w("Who is more adventurous with food?", .travel),
+            w("Who worries more about the future?", .future),
+            w("Who is better with kids?", .kids),
+            w("Who would cry at the wedding?", .future),
+            w("Who is more likely to quit their job for love?", .career, premium: true),
+            w("Who is the big spoon?", .romantic),
+            w("Who takes longer in the bathroom?", .habits),
+            w("Who has the messier side of the bed?", .habits),
+            w("Who is more likely to start a dance party in the kitchen?", .funny),
+            w("Who is better at keeping secrets?", .deep),
+            w("Who knows the other better?", .deep),
+            w("Who is more likely to get us lost on vacation?", .travel),
+
+            // A little variety.
             t("Watching a series ahead of your partner is a crime.", .funny),
-            t("Moving in together should happen before engagement.", .future),
-
-            // Scale 1–5 — how strongly do you feel it?
-            s("I'd move to another country if you asked me to.", .future),
-            s("I think about you during boring meetings.", .romantic),
-            s("I'm confident I know your coffee order by heart.", .habits),
-            s("Our video calls are the best part of my day.", .communication),
-            s("I'd let you plan our entire vacation without veto power.", .travel),
-            s("I could tell your mood from a single 'ok' text.", .deep),
-            s("We're aligned on how to spend and save money.", .money),
-            s("I want kids someday.", .kids),
-            s("I'd take a bullet train overnight just for 24 hours with you.", .romantic),
-            s("Meeting each other's friends matters more than meeting family first.", .family),
-            s("My career could handle a relocation for us.", .career),
-            s("I feel fully heard when we argue.", .conflict, premium: true),
-            s("Physical touch is my main love language.", .loveLanguages),
-            s("We should set one shared goal every month.", .goals),
-            s("I believe in soulmates.", .dreams),
-
-            // Open — a few classics for depth.
+            t("Long-distance made us stronger.", .deep),
             q("What tiny moment with me do you replay in your head?", .romantic),
-            q("What's one thing you've never told anyone — even me?", .deep, premium: true),
-            q("Where should we wake up on our 10th anniversary?", .future),
             q("What's the best way for me to say sorry to you?", .conflict),
-            q("What did today teach you about us?", .deep),
         ]
     }()
 }
@@ -302,10 +308,12 @@ public struct DemoQuestionService: QuestionService {
         return makeState(q, answers: answers, me: me)
     }
 
-    public func submitAnswer(_ text: String, rating: Int?, question: DailyQuestion,
-                             relationship: RelationshipID, author: UserID) async throws -> DailyQuestionState {
+    public func submitAnswer(_ text: String, rating: Int?, selectedUserID: UserID?,
+                             question: DailyQuestion, relationship: RelationshipID,
+                             author: UserID) async throws -> DailyQuestionState {
         let answer = QuestionAnswer(questionID: question.id, authorID: author, text: text,
-                                    rating: rating, questionText: question.text)
+                                    rating: rating, selectedUserID: selectedUserID,
+                                    questionText: question.text)
         await DemoStore.shared.addAnswer(answer)
         let answers = await DemoStore.shared.answers[question.id] ?? []
         return makeState(question, answers: answers, me: author)
@@ -321,6 +329,14 @@ public struct DemoQuestionService: QuestionService {
             let q = QuestionBank.question(for: key)
             let (mine, partners): (QuestionAnswer, QuestionAnswer)
             switch q.format {
+            case .who:
+                let pickAlex = offset % 2 == 0
+                let chosen = pickAlex ? "user_alex" : "user_sam"
+                let name = pickAlex ? "Alex" : "Sam"
+                mine = QuestionAnswer(questionID: q.id, authorID: "user_alex", text: name,
+                                      answeredAt: date, selectedUserID: chosen, questionText: q.text)
+                partners = QuestionAnswer(questionID: q.id, authorID: "user_sam", text: name,
+                                          answeredAt: date, selectedUserID: chosen, questionText: q.text)
             case .thumbs:
                 let agree = offset % 3 != 0
                 mine = QuestionAnswer(questionID: q.id, authorID: "user_alex", text: "Agree",
@@ -440,17 +456,36 @@ public struct DemoPremiumService: PremiumService {
     }
 
     public func premiumState(relationship: Relationship?, me: UserID) async -> PremiumState {
-        guard let purchaser = UserDefaults.standard.string(forKey: Self.fakePurchaserKey)
-        else { return .free }
-        let members = relationship?.memberIDs ?? [me]
-        guard members.contains(purchaser) else { return .free }
-        return PremiumState(
-            isPremium: true,
-            inheritedFromPartner: purchaser != me,
-            entitlement: PremiumEntitlement(
-                purchaserID: purchaser,
-                productID: UserDefaults.standard.string(forKey: Self.fakeProductKey) ?? "lovio_yearly",
-                expiresAt: .now.addingTimeInterval(86_400 * 365)))
+        // 1. Local fake purchase on THIS device (purchaser).
+        if let purchaser = UserDefaults.standard.string(forKey: Self.fakePurchaserKey) {
+            let members = relationship?.memberIDs ?? [me]
+            if members.contains(purchaser) {
+                let ent = PremiumEntitlement(
+                    purchaserID: purchaser,
+                    productID: UserDefaults.standard.string(forKey: Self.fakeProductKey) ?? "lovio_yearly",
+                    expiresAt: .now.addingTimeInterval(86_400 * 365))
+                // Keep the shared mirror fresh so the partner inherits.
+                if let relationship { await RevenueCatPremiumService.mirror(ent, to: relationship.id) }
+                return PremiumState(isPremium: true,
+                                    inheritedFromPartner: purchaser != me,
+                                    entitlement: ent)
+            }
+        }
+        // 2. Partner's purchase mirrored into Firestore (other phone).
+        if let relationship,
+           relationship.status == .active || relationship.status == .pendingPartner,
+           FirebaseBootstrap.isConfigured,
+           let doc = try? await Firestore.firestore()
+                .collection("relationships").document(relationship.id)
+                .collection("premium").document("state").getDocument(),
+           let entitlement = try? doc.data(as: PremiumEntitlement.self),
+           entitlement.isActive,
+           relationship.memberIDs.contains(entitlement.purchaserID) {
+            return PremiumState(isPremium: true,
+                                inheritedFromPartner: entitlement.purchaserID != me,
+                                entitlement: entitlement)
+        }
+        return .free
     }
 
     public func offers() async throws -> [PaywallOffer] {
@@ -473,9 +508,13 @@ public struct DemoPremiumService: PremiumService {
         try? await Task.sleep(for: .milliseconds(900))
         UserDefaults.standard.set(me, forKey: Self.fakePurchaserKey)
         UserDefaults.standard.set(offerID, forKey: Self.fakeProductKey)
-        return PremiumState(isPremium: true,
-                            entitlement: PremiumEntitlement(purchaserID: me, productID: offerID,
-                                                            expiresAt: .now.addingTimeInterval(86_400 * 365)))
+        let entitlement = PremiumEntitlement(purchaserID: me, productID: offerID,
+                                             expiresAt: .now.addingTimeInterval(86_400 * 365))
+        // Critical: write the shared mirror so Partner B unlocks on their phone.
+        if let relationship {
+            await RevenueCatPremiumService.mirror(entitlement, to: relationship)
+        }
+        return PremiumState(isPremium: true, entitlement: entitlement)
     }
 
     public func restorePurchases(me: UserID) async throws -> PremiumState {

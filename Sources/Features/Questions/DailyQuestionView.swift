@@ -75,6 +75,7 @@ struct DailyQuestionView: View {
             }
 
             switch state.question.format {
+            case .who:     whoComposer
             case .thumbs:  thumbsComposer
             case .scale:   scaleComposer
             case .open:    openComposer
@@ -84,6 +85,57 @@ struct DailyQuestionView: View {
                 .font(Lovio.Type_.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Pick you or your partner — answers show each other's real names.
+    private var whoComposer: some View {
+        VStack(spacing: 12) {
+            Text("Tap who you think it is")
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 14) {
+                whoButton(name: model.myFirstName,
+                          initials: model.myProfile?.initials ?? "Y",
+                          userID: model.user?.id,
+                          tint: Lovio.Palette.rose)
+                whoButton(name: model.partnerFirstName ?? "Partner",
+                          initials: model.partnerProfile?.initials ?? "♥",
+                          userID: model.partnerProfile?.id ?? model.relationship?.memberIDs.first { $0 != model.user?.id },
+                          tint: Lovio.Palette.lavender)
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func whoButton(name: String, initials: String, userID: UserID?, tint: Color) -> some View {
+        Button {
+            guard let userID else { return }
+            Haptics.light()
+            Task {
+                await model.answerTodayQuestion(name, selectedUserID: userID)
+            }
+        } label: {
+            VStack(spacing: 10) {
+                Text(initials)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(tint))
+                Text(name)
+                    .font(Lovio.Type_.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 22)
+            .background {
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.ultraThinMaterial)
+                    .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(tint.opacity(0.35), lineWidth: 1.5))
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(userID == nil || !model.isPaired)
     }
 
     /// Agree / disagree — one tap and it's sealed.
@@ -190,7 +242,11 @@ struct DailyQuestionView: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Your answer").font(Lovio.Type_.caption).foregroundStyle(.secondary)
-                    AnswerDisplay(answer: state.myAnswer, kind: state.question.format)
+                    AnswerDisplay(answer: state.myAnswer, kind: state.question.format,
+                                  myName: model.myFirstName,
+                                  partnerName: model.partnerFirstName ?? model.partnerName,
+                                  myID: model.user?.id,
+                                  partnerID: model.partnerProfile?.id)
                 }
             }
         }
@@ -202,8 +258,18 @@ struct DailyQuestionView: View {
     private func revealedAnswers(_ state: DailyQuestionState) -> some View {
         VStack(spacing: 14) {
             if let match = QuestionAlignment.matchPercent(state) {
-                Text(QuestionAlignment.verdict(forMatch: match))
+                let banner: String = {
+                    if state.question.format == .who {
+                        let same = state.revealedAnswers[0].selectedUserID
+                            == state.revealedAnswers[1].selectedUserID
+                            ? state.revealedAnswers[0].text : nil
+                        return QuestionAlignment.verdict(forWhoMatch: match, sameName: same)
+                    }
+                    return QuestionAlignment.verdict(forMatch: match)
+                }()
+                Text(banner)
                     .font(Lovio.Type_.headline)
+                    .multilineTextAlignment(.center)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 10)
                     .background(Capsule().fill(Lovio.Palette.rose.opacity(0.15)))
@@ -213,10 +279,16 @@ struct DailyQuestionView: View {
                 let isMine = answer.authorID == model.user?.id
                 GlassCard(tint: isMine ? Lovio.Palette.rose : Lovio.Palette.lavender) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(isMine ? model.myName : model.partnerName)
+                        Text(isMine
+                             ? "\(model.myFirstName) answered"
+                             : "\(model.partnerFirstName ?? model.partnerName) answered")
                             .font(Lovio.Type_.caption)
                             .foregroundStyle(isMine ? Lovio.Palette.rose : Lovio.Palette.lavender)
-                        AnswerDisplay(answer: answer, kind: state.question.format)
+                        AnswerDisplay(answer: answer, kind: state.question.format,
+                                      myName: model.myFirstName,
+                                      partnerName: model.partnerFirstName ?? model.partnerName,
+                                      myID: model.user?.id,
+                                      partnerID: model.partnerProfile?.id)
                     }
                 }
                 .transition(.scale(scale: 0.9).combined(with: .opacity))
@@ -233,15 +305,29 @@ struct DailyQuestionView: View {
     }
 }
 
-/// Renders an answer according to its question format: thumbs → 👍/👎 label,
-/// scale → filled hearts, open → the written text.
+/// Renders an answer according to its question format.
 struct AnswerDisplay: View {
     let answer: QuestionAnswer?
     let kind: QuestionKind
+    var myName: String = "You"
+    var partnerName: String = "Partner"
+    var myID: UserID?
+    var partnerID: UserID?
 
     var body: some View {
         if let answer {
             switch kind {
+            case .who:
+                let label: String = {
+                    if let id = answer.selectedUserID {
+                        if id == myID { return myName }
+                        if id == partnerID { return partnerName }
+                    }
+                    return answer.text
+                }()
+                Label(label, systemImage: "person.fill")
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(Lovio.Palette.rose)
             case .thumbs:
                 Label(answer.rating == 1 ? "Agree" : "Disagree",
                       systemImage: answer.rating == 1 ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
@@ -314,7 +400,11 @@ struct QuestionArchiveView: View {
                                               ? Lovio.Palette.rose : Lovio.Palette.lavender)
                                         .frame(width: 7, height: 7)
                                         .padding(.top, 6)
-                                    AnswerDisplay(answer: answer, kind: state.question.format)
+                                    AnswerDisplay(answer: answer, kind: state.question.format,
+                                                  myName: model.myFirstName,
+                                                  partnerName: model.partnerFirstName ?? model.partnerName,
+                                                  myID: model.user?.id,
+                                                  partnerID: model.partnerProfile?.id)
                                         .foregroundStyle(.secondary)
                                 }
                             }

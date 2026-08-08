@@ -20,14 +20,30 @@ struct SnapshotProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SnapshotEntry) -> Void) {
-        // Sample data ONLY in the system widget gallery — on the real home
-        // screen, show the app-published snapshot or an honest empty state.
-        let snapshot = context.isPreview ? .placeholder : AppGroup.loadSnapshot()
+        // System widget gallery must NEVER show the premium lock — it's a
+        // preview surface, not a paywall. Home-screen widgets use live data.
+        if context.isPreview {
+            completion(SnapshotEntry(date: .now, snapshot: .placeholder))
+            return
+        }
+        var snapshot = AppGroup.loadSnapshot()
+        // Stale timelines (purchased Premium after last reload) still unlock.
+        if AppGroup.defaults.bool(forKey: "missuo.widget.isPremium") {
+            snapshot.isPremium = true
+        }
         completion(SnapshotEntry(date: .now, snapshot: snapshot))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
-        let snapshot = AppGroup.loadSnapshot()
+        if context.isPreview {
+            completion(Timeline(entries: [SnapshotEntry(date: .now, snapshot: .placeholder)],
+                                policy: .atEnd))
+            return
+        }
+        var snapshot = AppGroup.loadSnapshot()
+        if AppGroup.defaults.bool(forKey: "missuo.widget.isPremium") {
+            snapshot.isPremium = true
+        }
         var entries: [SnapshotEntry] = [SnapshotEntry(date: .now, snapshot: snapshot)]
 
         // Presence decays: "you're both here" is only true for ~20 min after

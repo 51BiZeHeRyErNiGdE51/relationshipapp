@@ -153,6 +153,18 @@ export function tomorrowEventPush(title: string, lang: MissuoLang): { title: str
   return t[lang];
 }
 
+export function premiumUnlockedPush(name: string, lang: MissuoLang): { title: string; body: string } {
+  const t: Record<MissuoLang, { title: string; body: string }> = {
+    en: { title: `${name} unlocked Premium for you two 👑`, body: "Everything is open on your side too — enjoy it together." },
+    fr: { title: `${name} a débloqué Premium pour vous deux 👑`, body: "Tout est ouvert de ton côté aussi — profitez-en ensemble." },
+    de: { title: `${name} hat Premium für euch beide freigeschaltet 👑`, body: "Auch bei dir ist jetzt alles offen — genießt es zusammen." },
+    ko: { title: `${name}님이 두 사람을 위해 프리미엄을 열었어요 👑`, body: "이제 모든 기능을 함께 쓸 수 있어요." },
+    pt: { title: `${name} desbloqueou o Premium para os dois 👑`, body: "Está tudo aberto do teu lado também — aproveitem juntos." },
+    es: { title: `${name} desbloqueó Premium para los dos 👑`, body: "Todo está abierto también en tu lado — disfrutadlo juntos." },
+  };
+  return t[lang];
+}
+
 export const pushCopy = {
   answersUnlockedTitle,
   answersUnlockedBody,

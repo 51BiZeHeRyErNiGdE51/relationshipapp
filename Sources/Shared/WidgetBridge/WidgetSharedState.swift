@@ -151,6 +151,9 @@ public struct WidgetSnapshot: Codable, Sendable {
             lastMemoryTitle: "Sunset picnic at the pier", lastMemoryDate: Date().addingTimeInterval(-86400 * 3))
         s.hasAnniversary = true
         s.isPaired = true
+        // The system widget-gallery preview must show the widget's REAL face,
+        // never the premium lock — previews aren't a paywall surface.
+        s.isPremium = true
         return s
     }()
 

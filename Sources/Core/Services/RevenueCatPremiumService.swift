@@ -72,12 +72,15 @@ struct RevenueCatPremiumService: PremiumService {
                                                 productID: entitlement.productIdentifier,
                                                 expiresAt: entitlement.expirationDate,
                                                 willRenew: entitlement.willRenew))
-            if let relationship { await mirror(state.entitlement!, to: relationship.id) }
+            if let relationship { await Self.mirror(state.entitlement!, to: relationship.id) }
             return state
         }
 
         // 2. Partner-inherited premium via the relationship mirror document.
+        // Only while the couple is actively paired — ended relationships must
+        // never keep granting inherited premium after a split.
         if let relationship,
+           relationship.status == .active || relationship.status == .pendingPartner,
            let doc = try? await db.collection("relationships").document(relationship.id)
                 .collection("premium").document("state").getDocument(),
            let entitlement = try? doc.data(as: PremiumEntitlement.self),
@@ -211,7 +214,7 @@ struct RevenueCatPremiumService: PremiumService {
                                          productID: entitlement.productIdentifier,
                                          expiresAt: entitlement.expirationDate,
                                          willRenew: entitlement.willRenew)
-        if let relationship { await mirror(premium, to: relationship) }
+        if let relationship { await Self.mirror(premium, to: relationship) }
         return PremiumState(isPremium: true, entitlement: premium)
     }
 
@@ -229,8 +232,26 @@ struct RevenueCatPremiumService: PremiumService {
                                                             willRenew: entitlement.willRenew))
     }
 
+    /// Writes the couple's shared premium doc so the partner unlocks within
+    /// one refresh. Public so demo/fallback purchases use the same path.
+    static func mirror(_ entitlement: PremiumEntitlement, to relationship: RelationshipID) async {
+        guard FirebaseBootstrap.isConfigured else { return }
+        do {
+            try Firestore.firestore().collection("relationships").document(relationship)
+                .collection("premium").document("state").setData(from: entitlement)
+        } catch {
+            print("Premium mirror failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Called when a relationship ends so the ex-partner stops inheriting.
+    static func clearMirror(on relationship: RelationshipID) async {
+        guard FirebaseBootstrap.isConfigured else { return }
+        try? await Firestore.firestore().collection("relationships").document(relationship)
+            .collection("premium").document("state").delete()
+    }
+
     private func mirror(_ entitlement: PremiumEntitlement, to relationship: RelationshipID) async {
-        try? db.collection("relationships").document(relationship)
-            .collection("premium").document("state").setData(from: entitlement)
+        await Self.mirror(entitlement, to: relationship)
     }
 }
