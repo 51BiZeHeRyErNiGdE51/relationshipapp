@@ -523,3 +523,48 @@ final class RemoteConfigExperiments: ExperimentsService, @unchecked Sendable {
         _ = try? await config.fetchAndActivate()
     }
 }
+
+// MARK: - Couple games (async 2-choice)
+
+struct FirestoreGameService: GameService {
+    private var db: Firestore { Firestore.firestore() }
+
+    func deck(game: CoupleGame, relationship: RelationshipID, me: UserID) async throws -> [GamePromptState] {
+        let prompts = GameBank.prompts(for: game)
+        let snapshot = try await db.collection("relationships").document(relationship)
+            .collection("gameAnswers")
+            .whereField("gameID", isEqualTo: game.rawValue)
+            .getDocuments()
+        let answers = snapshot.documents.compactMap { try? $0.data(as: GameAnswer.self) }
+        let byPrompt = Dictionary(grouping: answers, by: \.promptID)
+        return prompts.map { prompt in
+            assemble(prompt, answers: byPrompt[prompt.id] ?? [], me: me)
+        }
+    }
+
+    func submitChoice(game: CoupleGame, prompt: GamePrompt, choice: String,
+                      choiceLabel: String, relationship: RelationshipID,
+                      author: UserID) async throws -> GamePromptState {
+        let answer = GameAnswer(id: "\(game.rawValue)_\(prompt.id)_\(author)",
+                                gameID: game.rawValue, promptID: prompt.id,
+                                authorID: author, choice: choice, choiceLabel: choiceLabel)
+        try db.collection("relationships").document(relationship)
+            .collection("gameAnswers").document(answer.id).setData(from: answer)
+        let snapshot = try await db.collection("relationships").document(relationship)
+            .collection("gameAnswers")
+            .whereField("gameID", isEqualTo: game.rawValue)
+            .whereField("promptID", isEqualTo: prompt.id)
+            .getDocuments()
+        let answers = snapshot.documents.compactMap { try? $0.data(as: GameAnswer.self) }
+        return assemble(prompt, answers: answers, me: author)
+    }
+
+    private func assemble(_ prompt: GamePrompt, answers: [GameAnswer], me: UserID) -> GamePromptState {
+        let mine = answers.first { $0.authorID == me }
+        let partner = answers.first { $0.authorID != me }
+        let revealed = (mine != nil && partner != nil) ? answers : []
+        return GamePromptState(prompt: prompt, myAnswer: mine,
+                               partnerHasAnswered: partner != nil,
+                               revealedAnswers: revealed)
+    }
+}

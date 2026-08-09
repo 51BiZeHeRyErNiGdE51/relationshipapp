@@ -1,6 +1,9 @@
 import SwiftUI
 
-// MARK: - Play: couple games hub
+// MARK: - Play: distance-friendly couple games
+//
+// Every game is 2-choice. Both partners answer blind on their own phones;
+// answers unlock when both have picked. Same cards for both (shared bank).
 
 struct PlayView: View {
     @Environment(AppModel.self) private var model
@@ -10,23 +13,33 @@ struct PlayView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("Two players. One couch. No losers.")
+                Text("Play from anywhere — pick your answer, then see theirs when they reply.")
                     .font(Lovio.Type_.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !model.isPaired {
+                    GlassCard(tint: Lovio.Palette.rose) {
+                        Label("Pair with your partner first — games unlock together.",
+                              systemImage: "person.2.badge.plus")
+                            .font(Lovio.Type_.body)
+                            .foregroundStyle(Lovio.Palette.rose)
+                    }
+                }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     ForEach(CoupleGame.allCases) { game in
                         Button {
                             if game.isPremium && !model.premium.isPremium {
                                 showPaywall = true
-                            } else {
+                            } else if model.isPaired {
                                 activeGame = game
-                                model.services.analytics.track(.gamePlayed(game: game.rawValue))
+                            } else {
+                                model.errorMessage = L10n.s("Connect with your partner first — games are better together.")
                             }
                         } label: {
                             GlassCard {
-                                VStack(alignment: .leading, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         Image(systemName: game.symbol)
                                             .font(.title2)
@@ -38,10 +51,14 @@ struct PlayView: View {
                                                 .foregroundStyle(Lovio.Palette.gold)
                                         }
                                     }
-                                    Text(game.title)
+                                    Text(L10n.copy(game.title))
                                         .font(Lovio.Type_.headline)
                                         .multilineTextAlignment(.leading)
-                                        .frame(height: 44, alignment: .topLeading)
+                                    Text(L10n.copy(game.subtitle))
+                                        .font(Lovio.Type_.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(height: 36, alignment: .topLeading)
+                                        .multilineTextAlignment(.leading)
                                 }
                             }
                         }
@@ -54,7 +71,7 @@ struct PlayView: View {
         .scrollIndicators(.hidden)
         .navigationTitle("Play")
         .sheet(item: $activeGame) { game in
-            PromptDeckGameView(game: game)
+            SharedGameDeckView(game: game)
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(source: "games")
@@ -62,116 +79,242 @@ struct PlayView: View {
     }
 }
 
-// MARK: - Prompt-deck game (pass and play)
+// MARK: - Shared 2-choice deck
 
-struct PromptDeckGameView: View {
+struct SharedGameDeckView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let game: CoupleGame
 
+    @State private var states: [GamePromptState] = []
     @State private var index = 0
-    @State private var flipped = false
+    @State private var isLoading = true
+
+    private var current: GamePromptState? {
+        guard !states.isEmpty else { return nil }
+        return states[index % states.count]
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 28) {
-                Spacer()
-
-                Text(game.title)
-                    .font(Lovio.Type_.title)
-
-                // Card
-                ZStack {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(Lovio.Gradients.hero)
-                        .shadow(color: Lovio.Palette.rose.opacity(0.35), radius: 22, y: 10)
-
-                    Text(prompts[index % prompts.count])
-                        .font(Lovio.Type_.title)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(28)
+            Group {
+                if isLoading {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let state = current {
+                    promptCard(state)
+                } else {
+                    Text("No prompts yet.")
+                        .foregroundStyle(.secondary)
                 }
-                .frame(height: 300)
-                .padding(.horizontal, 28)
-                .rotation3DEffect(.degrees(flipped ? 360 : 0), axis: (x: 0, y: 1, z: 0))
-                .onTapGesture { next() }
-
-                Text("Tap the card for the next one")
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 14) {
-                    Button {
-                        next()
-                    } label: {
-                        Label("Next", systemImage: "arrow.right")
-                    }
-                    .buttonStyle(LovioPrimaryButtonStyle())
-                }
-                .padding(.horizontal, 28)
-
-                Spacer()
             }
             .background(Lovio.Gradients.ambient(.light).ignoresSafeArea())
+            .navigationTitle(L10n.copy(game.title))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task { await reload() }
+        }
+    }
+
+    private func reload() async {
+        guard let rel = model.relationship, let me = model.user else { return }
+        isLoading = true
+        states = (try? await model.services.games.deck(game: game, relationship: rel.id, me: me.id)) ?? []
+        isLoading = false
+    }
+
+    @ViewBuilder
+    private func promptCard(_ state: GamePromptState) -> some View {
+        VStack(spacing: 20) {
+            // Progress
+            HStack {
+                Text("\(index + 1) / \(states.count)")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                let revealed = states.filter(\.isRevealed).count
+                Text(L10n.s("%lld unlocked together", Int64(revealed)))
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+            .padding(.top, 8)
+
+            Spacer(minLength: 8)
+
+            // Question
+            Text(L10n.copy(state.prompt.text))
+                .font(Lovio.Type_.largeTitle)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+                .minimumScaleFactor(0.7)
+
+            if state.isRevealed {
+                revealedView(state)
+            } else if state.myAnswer != nil {
+                waitingView(state)
+            } else {
+                choicesView(state)
+            }
+
+            Spacer(minLength: 8)
+
+            // Navigation between prompts
+            HStack(spacing: 14) {
+                Button {
+                    withAnimation(.smooth) { index = max(0, index - 1) }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(.ultraThinMaterial))
+                }
+                .disabled(index == 0)
+
+                Button {
+                    Haptics.light()
+                    withAnimation(.smooth) { index = min(states.count - 1, index + 1) }
+                } label: {
+                    Text(index < states.count - 1 ? L10n.copy("Next card") : L10n.copy("Back to start"))
+                        .font(Lovio.Type_.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Capsule().fill(Lovio.Palette.rose.opacity(0.15)))
+                        .foregroundStyle(Lovio.Palette.rose)
+                }
+                .simultaneousGesture(TapGesture().onEnded {
+                    if index >= states.count - 1 { index = 0 }
+                })
+
+                Button {
+                    withAnimation(.smooth) { index = min(states.count - 1, index + 1) }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(.ultraThinMaterial))
+                }
+                .disabled(index >= states.count - 1)
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+            .padding(.bottom, 24)
+        }
+    }
+
+    /// English source labels (stored + used as localization keys).
+    private func sourceChoices(for prompt: GamePrompt) -> (a: String, b: String) {
+        if let a = prompt.choiceA, let b = prompt.choiceB {
+            return (a, b)
+        }
+        // Who's More Likely — real names (not localized).
+        return (model.myFirstName, model.partnerFirstName ?? L10n.copy("Partner"))
+    }
+
+    private func choicesView(_ state: GamePromptState) -> some View {
+        let pair = sourceChoices(for: state.prompt)
+        let namesOnly = state.prompt.choiceA == nil
+        return VStack(spacing: 12) {
+            if state.partnerHasAnswered {
+                let who = model.partnerFirstName ?? L10n.copy("Your partner")
+                Label(L10n.s("%@ already answered — yours unlocks both", who),
+                      systemImage: "sparkles")
+                    .font(Lovio.Type_.caption)
+                    .foregroundStyle(Lovio.Palette.rose)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            HStack(spacing: 12) {
+                choiceButton(sourceLabel: pair.a, display: namesOnly ? pair.a : L10n.copy(pair.a),
+                             choice: "a", state: state)
+                choiceButton(sourceLabel: pair.b, display: namesOnly ? pair.b : L10n.copy(pair.b),
+                             choice: "b", state: state)
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
+            Text("They won't see your pick until they answer too.")
+                .font(Lovio.Type_.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func choiceButton(sourceLabel: String, display: String,
+                              choice: String, state: GamePromptState) -> some View {
+        Button {
+            Task {
+                if let updated = await model.submitGameChoice(
+                    game: game, prompt: state.prompt,
+                    choice: choice, choiceLabel: sourceLabel),
+                   let i = states.firstIndex(where: { $0.prompt.id == updated.prompt.id }) {
+                    withAnimation(.smooth) { states[i] = updated }
+                }
+            }
+        } label: {
+            Text(display)
+                .font(Lovio.Type_.headline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Lovio.Palette.plum)
+                .frame(maxWidth: .infinity, minHeight: 88)
+                .padding(14)
+                .background {
+                    RoundedRectangle(cornerRadius: 22)
+                        .fill(.white)
+                        .shadow(color: Lovio.Palette.rose.opacity(0.2), radius: 12, y: 4)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func waitingView(_ state: GamePromptState) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "lock.heart.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(Lovio.Gradients.hero)
+                .symbolEffect(.pulse)
+            Text(L10n.s("Sealed until %@ answers",
+                        model.partnerFirstName ?? L10n.copy("your partner")))
+                .font(Lovio.Type_.headline)
+                .multilineTextAlignment(.center)
+            if let mine = state.myAnswer {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("You picked").font(Lovio.Type_.caption).foregroundStyle(.secondary)
+                        Text(L10n.copy(mine.choiceLabel)).font(Lovio.Type_.headline)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, Lovio.Metrics.screenPadding)
             }
         }
     }
 
-    private func next() {
-        Haptics.light()
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.75)) {
-            flipped.toggle()
-            index += 1
-        }
-    }
+    private func revealedView(_ state: GamePromptState) -> some View {
+        VStack(spacing: 14) {
+            if let matched = state.matched {
+                Text(matched
+                      ? L10n.copy("You picked the same! 💞")
+                      : L10n.copy("Different picks — fun to talk about 👀"))
+                    .font(Lovio.Type_.headline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Lovio.Palette.rose.opacity(0.15)))
+            }
 
-    private var prompts: [String] {
-        switch game {
-        case .whosMoreLikely:
-            ["Who's more likely to cry at a movie?",
-             "Who's more likely to forget an anniversary… and recover beautifully?",
-             "Who's more likely to adopt a pet without asking?",
-             "Who's more likely to become famous?",
-             "Who's more likely to get lost with GPS on?",
-             "Who's more likely to spend the vacation budget in one day?"]
-        case .wouldYouRather:
-            ["Would you rather relive our first date or fast-forward to our 10th anniversary?",
-             "Would you rather always know what I'm thinking, or me always know yours?",
-             "Would you rather live in a tiny house by the sea or a penthouse downtown?",
-             "Would you rather give up coffee together or takeout together?"]
-        case .neverHaveIEver:
-            ["Never have I ever pretended to like a gift from you.",
-             "Never have I ever read your texts over your shoulder.",
-             "Never have I ever let you win an argument on purpose.",
-             "Never have I ever stalked your ex online."]
-        case .guessMyAnswer:
-            ["What would I grab first in a fire (after you)?",
-             "What's my dream vacation?",
-             "What's my most-used emoji when texting you?",
-             "What food could I eat every day forever?"]
-        case .trivia:
-            ["What was the first thing I said to you?",
-             "What was I wearing on our first date?",
-             "Name the song that always reminds me of you.",
-             "What's my proudest moment since we met?"]
-        case .emojiStory:
-            ["Tell the story of our first date in exactly 5 emojis.",
-             "Describe your morning mood today in 3 emojis.",
-             "Our next vacation, but only emojis.",
-             "Your favorite memory of us — emoji edition."]
-        case .speedQuiz:
-            ["10 seconds: my shoe size?",
-             "10 seconds: my boss's name?",
-             "10 seconds: my coffee order?",
-             "10 seconds: the date of our anniversary?"]
-        case .compatibilityQuiz:
-            ["Ideal Sunday: adventure or absolute stillness? Answer together on 3…",
-             "Money: save for the house or spend on the trip?",
-             "Kids' bedtime: strict schedule or vibes?",
-             "Conflict style: talk it out now or cool off first?"]
+            ForEach(state.revealedAnswers) { answer in
+                let isMine = answer.authorID == model.user?.id
+                GlassCard(tint: isMine ? Lovio.Palette.rose : Lovio.Palette.lavender) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L10n.s("%@ picked",
+                                    isMine ? model.myFirstName
+                                    : (model.partnerFirstName ?? model.partnerName)))
+                            .font(Lovio.Type_.caption)
+                            .foregroundStyle(isMine ? Lovio.Palette.rose : Lovio.Palette.lavender)
+                        Text(L10n.copy(answer.choiceLabel))
+                            .font(Lovio.Type_.headline)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.horizontal, Lovio.Metrics.screenPadding)
         }
     }
 }
@@ -201,7 +344,6 @@ struct AICoachView: View {
                     .buttonStyle(.plain)
                 }
 
-                // Weekly report
                 VStack(alignment: .leading, spacing: 12) {
                     Text("This week's report")
                         .font(Lovio.Type_.title)
@@ -224,7 +366,6 @@ struct AICoachView: View {
                     }
                 }
 
-                // Date planner
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Dates planned for you two")
                         .font(Lovio.Type_.title)
@@ -237,14 +378,11 @@ struct AICoachView: View {
                     }
                 }
 
-                // Chat
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Ask the coach")
                         .font(Lovio.Type_.title)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Live DeepSeek coach via Cloud Functions once `askCoach`
-                    // is deployed; falls back to example replies until then.
                     Label("The coach knows your daily-question answers and moods — ask anything about you two", systemImage: "sparkles")
                         .font(Lovio.Type_.caption)
                         .foregroundStyle(.tertiary)

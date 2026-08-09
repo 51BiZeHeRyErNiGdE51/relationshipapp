@@ -90,9 +90,10 @@ struct LoveDaysWidget: Widget {
 private struct PolaroidBody: View {
     let slot: WidgetContent.Slot
     let emptyTitle: String
+    var forceEmpty: Bool = false
 
     var body: some View {
-        if let data = WidgetContent.loadPhoto(slot), let image = UIImage(data: data) {
+        if !forceEmpty, let data = WidgetContent.loadPhoto(slot), let image = UIImage(data: data) {
             ZStack(alignment: .bottomLeading) {
                 Color.clear
                 if let note = WidgetContent.note(slot), !note.isEmpty {
@@ -143,9 +144,17 @@ struct MyPolaroidWidget: Widget {
 /// The photo my partner sent me.
 struct PartnerPolaroidWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "polaroid_partner", provider: SnapshotProvider()) { _ in
-            PolaroidBody(slot: .partner,
-                         emptyTitle: "Photos your partner sends land here 💌")
+        StaticConfiguration(kind: "polaroid_partner", provider: SnapshotProvider()) { entry in
+            // After a breakup, never show a leftover App Group photo even if
+            // the file somehow wasn't cleared yet.
+            if entry.snapshot.isPaired == true {
+                PolaroidBody(slot: .partner,
+                             emptyTitle: "Photos your partner sends land here 💌")
+            } else {
+                PolaroidBody(slot: .partner,
+                             emptyTitle: "Pair in Missuo to receive their photos",
+                             forceEmpty: true)
+            }
         }
         .configurationDisplayName("From Your Love")
         .description("The photo and note your partner sent you.")
@@ -371,15 +380,18 @@ struct MissYouWidget: Widget {
 struct SecretMessageWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "secret_message", provider: SnapshotProvider()) { entry in
-            let partnerNote = WidgetContent.note(.partner)
-            let revealed = AppGroup.defaults.bool(forKey: "lovio.secret.revealed")
+            let paired = entry.snapshot.isPaired == true
+            let partnerNote = paired ? WidgetContent.note(.partner) : nil
+            let revealed = paired && AppGroup.defaults.bool(forKey: "lovio.secret.revealed")
             Button(intent: RevealSecretIntent()) {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(revealed ? "From \(entry.snapshot.partnerName.split(separator: " ").first.map(String.init) ?? "them")" : "Secret note",
                           systemImage: revealed ? "envelope.open.fill" : "envelope.fill")
                         .font(.system(.caption2, design: .rounded, weight: .bold))
                         .foregroundStyle(Lovio.Palette.gold)
-                    Text(partnerNote ?? "Notes your partner sends appear here")
+                    Text(partnerNote ?? (paired
+                                         ? "Notes your partner sends appear here"
+                                         : "Pair in Missuo to receive secret notes"))
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.white)
                         .blur(radius: (revealed || partnerNote == nil) ? 0 : 7)
@@ -441,7 +453,12 @@ struct DistanceWidget: Widget {
                 Image(systemName: "point.topleft.down.to.point.bottomright.curvepath.fill")
                     .font(.title3)
                     .foregroundStyle(Lovio.Palette.lavender)
-                if let km = entry.snapshot.distanceKilometers {
+                if entry.snapshot.isPaired != true {
+                    Text("Pair in Missuo to share distance")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                } else if let km = entry.snapshot.distanceKilometers {
                     if km < 1 {
                         Text("Together 🥰")
                             .font(.system(.headline, design: .rounded, weight: .heavy))

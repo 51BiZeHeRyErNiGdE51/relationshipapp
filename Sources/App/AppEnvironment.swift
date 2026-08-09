@@ -11,6 +11,7 @@ struct Services: Sendable {
     var auth: AuthService
     var relationship: RelationshipService
     var questions: QuestionService
+    var games: GameService
     var journal: JournalService
     var mood: MoodService
     var planner: PlannerService
@@ -24,6 +25,7 @@ struct Services: Sendable {
         Services(auth: FirebaseAuthService(),
                  relationship: FirestoreRelationshipService(),
                  questions: FirestoreQuestionService(),
+                 games: FirestoreGameService(),
                  journal: FirestoreJournalService(),
                  mood: FirestoreMoodService(),
                  planner: FirestorePlannerService(),
@@ -40,6 +42,7 @@ struct Services: Sendable {
         Services(auth: DemoAuthService(),
                  relationship: DemoRelationshipService(),
                  questions: DemoQuestionService(),
+                 games: DemoGameService(),
                  journal: DemoJournalService(),
                  mood: DemoMoodService(),
                  planner: DemoPlannerService(),
@@ -379,6 +382,7 @@ final class AppModel {
         user = nil
         relationship = nil
         partnerProfile = nil
+        clearExPartnerLocalContent()
         phase = .onboarding
     }
 
@@ -392,12 +396,30 @@ final class AppModel {
         try? await services.relationship.endRelationship(rel.id, endedBy: me.id)
         services.analytics.track(.relationshipEnded)
         partnerProfile = nil
+        clearExPartnerLocalContent()
         relationship = try? await services.relationship.createRelationship(creator: me.id, anniversary: nil)
         // Purchaser keeps RC/demo entitlement (remirrors into the new pending
         // relationship). Inheritor becomes free — mirror was deleted on end.
         premium = await services.premium.premiumState(relationship: relationship, me: me.id)
         publishWidgetSnapshot()
         await refreshToday()
+    }
+
+    /// Drops partner photo / secret note cached in the App Group so widgets
+    /// (From Your Love, Secret Message) go empty the moment the couple splits.
+    /// Also kills Distance: turns off opt-in and wipes coords from my profile
+    /// so an ex cannot keep seeing where I am.
+    private func clearExPartnerLocalContent() {
+        WidgetContent.clearPartnerContent()
+        distanceEnabled = false
+        if var profile = myProfile,
+           profile.latitude != nil || profile.longitude != nil || profile.locationUpdatedAt != nil {
+            profile.latitude = nil
+            profile.longitude = nil
+            profile.locationUpdatedAt = nil
+            myProfile = profile
+            Task { try? await services.relationship.updateProfile(profile) }
+        }
     }
 
     func joinRelationship(code: String) async {
@@ -476,6 +498,7 @@ final class AppModel {
                 // invite code) so this phone doesn't keep showing a partner —
                 // or their inherited premium — that no longer exists.
                 partnerProfile = nil
+                clearExPartnerLocalContent()
                 relationship = try? await services.relationship
                     .createRelationship(creator: user.id, anniversary: nil)
             }
@@ -546,9 +569,9 @@ final class AppModel {
             dirty = true
         }
         // Distance widget: ONE coarse fix (~1 km) per presence heartbeat,
-        // only if the user opted in. No continuous tracking — battery cost
-        // is effectively zero.
-        if distanceEnabled,
+        // only if the couple is paired AND the user opted in. Never publish
+        // coordinates while unpaired — ex partners must not keep tracking.
+        if isPaired, distanceEnabled,
            Date.now.timeIntervalSince(profile.locationUpdatedAt ?? .distantPast) > 5 * 60,
            let coordinate = await OneShotLocation.request() {
             profile.latitude = (coordinate.latitude * 100).rounded() / 100
@@ -569,6 +592,10 @@ final class AppModel {
     }
 
     func enableDistance() async {
+        guard isPaired else {
+            errorMessage = "Pair with your partner first — Distance only works together."
+            return
+        }
         distanceEnabled = true
         let status = await OneShotLocation.requestPermissionIfNeeded()
         guard status == .authorizedWhenInUse || status == .authorizedAlways else {
@@ -594,9 +621,10 @@ final class AppModel {
     }
 
     /// Km between the two partners' coarse locations (nil unless both opted
-    /// in and reported within the last 48 h).
+    /// in, are paired, and reported within the last 48 h).
     var distanceKilometers: Double? {
-        guard let myLat = myProfile?.latitude, let myLon = myProfile?.longitude,
+        guard isPaired,
+              let myLat = myProfile?.latitude, let myLon = myProfile?.longitude,
               let pLat = partnerProfile?.latitude, let pLon = partnerProfile?.longitude,
               let myAt = myProfile?.locationUpdatedAt, let pAt = partnerProfile?.locationUpdatedAt,
               Date.now.timeIntervalSince(myAt) < 48 * 3600,
@@ -685,6 +713,24 @@ final class AppModel {
             await recordEngagement(.questionAnswered, nurture: 8)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Async couple game: pick A or B; unlocks when both partners have answered.
+    func submitGameChoice(game: CoupleGame, prompt: GamePrompt,
+                          choice: String, choiceLabel: String) async -> GamePromptState? {
+        guard let rel = relationship, let user else { return nil }
+        do {
+            let state = try await services.games.submitChoice(
+                game: game, prompt: prompt, choice: choice, choiceLabel: choiceLabel,
+                relationship: rel.id, author: user.id)
+            services.analytics.track(.gamePlayed(game: game.rawValue))
+            Haptics.success()
+            await recordEngagement(.gamePlayed, nurture: 4)
+            return state
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
         }
     }
 

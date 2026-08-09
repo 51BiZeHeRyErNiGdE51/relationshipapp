@@ -22,6 +22,7 @@ public actor DemoStore {
     var notes: [SharedNote]
     var events: [RelationshipEvent] = []
     var answers: [String: [QuestionAnswer]] = [:]   // questionID -> answers
+    var gameAnswers: [String: [GameAnswer]] = [:]   // "gameID_promptID" -> answers
     var premiumPurchaser: UserID?
 
     init() {
@@ -131,6 +132,11 @@ public actor DemoStore {
     func removeNote(_ id: String) { notes.removeAll { $0.id == id } }
     func addEvent(_ e: RelationshipEvent) { events.append(e) }
     func addAnswer(_ a: QuestionAnswer) { answers[a.questionID, default: []].append(a) }
+    func addGameAnswer(_ a: GameAnswer) {
+        let key = "\(a.gameID)_\(a.promptID)"
+        gameAnswers[key, default: []].removeAll { $0.authorID == a.authorID }
+        gameAnswers[key, default: []].append(a)
+    }
     func setPremiumPurchaser(_ u: UserID?) { premiumPurchaser = u }
 
     // Shared widget content (per author) + in-memory image store (demo mode)
@@ -156,7 +162,8 @@ public enum QuestionBank {
     }
 
     /// Mostly playful "who" questions — tap your name or theirs, both answers
-    /// unlock together. A few thumbs / open questions stay for variety.
+    /// unlock together. A few thumbs statements stay for variety.
+    /// English source text is the localization key (see Localizable.xcstrings).
     public static let all: [DailyQuestion] = {
         func w(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
             DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .who)
@@ -164,11 +171,8 @@ public enum QuestionBank {
         func t(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
             DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .thumbs)
         }
-        func q(_ text: String, _ cat: QuestionCategory, premium: Bool = false) -> DailyQuestion {
-            DailyQuestion(text: text, category: cat, dayKey: "", isPremium: premium, kind: .open)
-        }
         return [
-            // Who — answers are Partner A or Partner B (shown as real names).
+            // —— Who (partner A vs B) ——
             w("Who snores louder?", .funny),
             w("Who eats the last cookie without asking?", .funny),
             w("Who said \"I love you\" first?", .romantic),
@@ -209,12 +213,178 @@ public enum QuestionBank {
             w("Who is better at keeping secrets?", .deep),
             w("Who knows the other better?", .deep),
             w("Who is more likely to get us lost on vacation?", .travel),
+            w("Who leaves wet towels on the floor?", .habits),
+            w("Who always loses the remote?", .funny),
+            w("Who is more likely to burn toast?", .habits),
+            w("Who sings louder in the car?", .funny),
+            w("Who takes better photos of us?", .loveLanguages),
+            w("Who is more likely to cry from happiness?", .romantic),
+            w("Who picks the restaurant?", .habits),
+            w("Who changes the restaurant last minute?", .funny),
+            w("Who is more likely to double-text?", .communication),
+            w("Who leaves the dishes \"to soak\"?", .habits),
+            w("Who is better at gift-giving?", .loveLanguages),
+            w("Who is more likely to start a group chat?", .communication),
+            w("Who would survive a horror movie?", .funny),
+            w("Who is more likely to become famous?", .career),
+            w("Who is more likely to adopt a plant and name it?", .funny),
+            w("Who is the better listener?", .communication),
+            w("Who interrupts more during stories?", .communication),
+            w("Who is more likely to book a spontaneous trip?", .travel),
+            w("Who overpacks for every trip?", .travel),
+            w("Who underpacks and borrows everything?", .travel),
+            w("Who is more likely to get sunburned first?", .travel),
+            w("Who navigates better without a map?", .travel),
+            w("Who is more likely to fall asleep on a flight?", .travel),
+            w("Who spends more on coffee?", .money),
+            w("Who is better at sticking to a budget?", .money),
+            w("Who is more likely to impulse-buy online?", .money),
+            w("Who remembers passwords better?", .habits),
+            w("Who is more likely to lose their keys?", .habits),
+            w("Who makes the bed in the morning?", .habits),
+            w("Who is messier with laundry?", .habits),
+            w("Who is more likely to stay up too late?", .habits),
+            w("Who needs coffee before speaking?", .habits),
+            w("Who is more likely to cancel plans to stay in?", .habits),
+            w("Who is more social at parties?", .communication),
+            w("Who leaves parties earlier?", .habits),
+            w("Who is more likely to dance in public?", .funny),
+            w("Who is more likely to sing karaoke?", .funny),
+            w("Who tells better jokes?", .funny),
+            w("Who laughs until they cry?", .funny),
+            w("Who is more dramatic when sick?", .funny),
+            w("Who is the better nurse when the other is sick?", .loveLanguages),
+            w("Who is more likely to send a cute good-morning text?", .romantic),
+            w("Who initiates more affection?", .loveLanguages),
+            w("Who is more likely to plan a surprise?", .romantic),
+            w("Who is worse at keeping surprises secret?", .funny),
+            w("Who writes better love notes?", .loveLanguages),
+            w("Who is more likely to tear up at a proposal video?", .romantic),
+            w("Who is more nostalgic about old photos?", .romantic),
+            w("Who says \"I love you\" more often?", .romantic),
+            w("Who is more likely to start a pillow fight?", .funny),
+            w("Who wins more petty arguments?", .conflict),
+            w("Who needs more cool-down time after a fight?", .conflict),
+            w("Who brings up old arguments more?", .conflict, premium: true),
+            w("Who is better at compromising?", .conflict),
+            w("Who is more likely to say sorry with food?", .conflict),
+            w("Who is more conflict-avoidant?", .conflict),
+            w("Who is more direct when upset?", .conflict),
+            w("Who is more likely to sulk quietly?", .conflict),
+            w("Who dreams bigger about our future?", .future),
+            w("Who is more ready to settle down?", .future),
+            w("Who would want more kids?", .kids, premium: true),
+            w("Who is more likely to spoil the kids?", .kids),
+            w("Who would be the stricter parent?", .kids),
+            w("Who is more likely to move cities for a job?", .career),
+            w("Who works later hours?", .career),
+            w("Who is more ambitious at work?", .career),
+            w("Who is better at work-life balance?", .career),
+            w("Who would rather work from home forever?", .career),
+            w("Who is closer to their family?", .family),
+            w("Who calls their parents more?", .family),
+            w("Who is more likely to host family holidays?", .family),
+            w("Who gets along better with in-laws?", .family, premium: true),
+            w("Who is more likely to start a new hobby this year?", .goals),
+            w("Who sticks to New Year's resolutions longer?", .goals),
+            w("Who is more likely to join a gym and actually go?", .goals),
+            w("Who is more competitive in games?", .goals),
+            w("Who hates losing more?", .goals),
+            w("Who is more likely to binge a whole season alone?", .funny),
+            w("Who picks better movies?", .habits),
+            w("Who falls for spoilers first?", .funny),
+            w("Who is more likely to rewatch comfort shows?", .habits),
+            w("Who controls the thermostat?", .habits),
+            w("Who is colder in bed?", .funny),
+            w("Who steals hoodies more often?", .romantic),
+            w("Who is more likely to wear the other's clothes?", .romantic),
+            w("Who has the better style?", .habits),
+            w("Who takes longer to get ready?", .habits),
+            w("Who is more likely to be fashionably late?", .habits),
+            w("Who is always early?", .habits),
+            w("Who is better at small talk?", .communication),
+            w("Who is more likely to overshare with strangers?", .communication),
+            w("Who remembers people's names better?", .communication),
+            w("Who is more likely to send voice notes?", .communication),
+            w("Who writes longer texts?", .communication),
+            w("Who is more likely to leave someone on read?", .communication),
+            w("Who is better at reading the other's mood?", .deep),
+            w("Who opens up emotionally faster?", .deep),
+            w("Who needs more alone time?", .deep),
+            w("Who is more likely to overthink a text?", .deep),
+            w("Who trusts more easily?", .deep),
+            w("Who is more jealous?", .deep, premium: true),
+            w("Who is more likely to check if the other is online?", .deep),
+            w("Who forgives faster?", .deep),
+            w("Who holds onto feelings longer?", .deep),
+            w("Who is more likely to plan our retirement fantasy?", .future),
+            w("Who would rather live by the ocean?", .future),
+            w("Who would rather live in a big city?", .future),
+            w("Who is more likely to suggest matching tattoos?", .romantic),
+            w("Who is more spontaneous?", .habits),
+            w("Who is more of a planner?", .habits),
+            w("Who is more likely to say yes to adventure?", .travel),
+            w("Who is more likely to say \"maybe next time\"?", .travel),
+            w("Who tips more generously?", .money),
+            w("Who splits the bill more carefully?", .money),
+            w("Who is more likely to forget a wallet?", .funny),
+            w("Who is luckier?", .funny),
+            w("Who is more superstitious?", .funny),
+            w("Who believes in soulmates more?", .romantic),
+            w("Who is more likely to write a song about us?", .romantic),
+            w("Who would survive without the other for a week easier?", .deep),
+            w("Who misses the other more when apart?", .romantic),
+            w("Who is more likely to send a random \"thinking of you\"?", .romantic),
+            w("Who is better at morning energy?", .habits),
+            w("Who is better at night energy?", .habits),
+            w("Who would win a cooking competition between us?", .habits),
+            w("Who would win a cleaning competition between us?", .habits),
+            w("Who is more likely to start decorating for holidays too early?", .funny),
+            w("Who is more likely to take the holiday decorations down late?", .funny),
+            w("Who is the better gift wrapper?", .loveLanguages),
+            w("Who puts more thought into anniversary plans?", .loveLanguages),
+            w("Who is more likely to suggest a picnic?", .romantic),
+            w("Who is more likely to suggest staying in pajamas all day?", .habits),
+            w("Who is more likely to order dessert?", .habits),
+            w("Who finishes the other's sentences more?", .communication),
+            w("Who knows the other's coffee order by heart?", .loveLanguages),
+            w("Who would notice a haircut first?", .loveLanguages),
+            w("Who is more likely to give a compliment in public?", .loveLanguages),
+            w("Who is more likely to tease the other in public?", .funny),
+            w("Who is braver with spiders?", .funny),
+            w("Who is braver with heights?", .travel),
+            w("Who would try skydiving first?", .travel),
+            w("Who would try raw oysters first?", .travel),
+            w("Who is more likely to get us upgraded somehow?", .travel),
+            w("Who complains more when hungry?", .funny),
+            w("Who is more likely to turn a chore into a competition?", .goals),
+            w("Who is more likely to say \"I told you so\"?", .conflict),
+            w("Who is more likely to become the couple that hosts everything?", .family),
+            w("Who would be more emotional at our kids' graduation?", .kids, premium: true),
+            w("Who is more likely to keep a shared calendar updated?", .habits),
+            w("Who is more likely to forget why they walked into a room?", .funny),
 
-            // A little variety.
+            // —— Agree / Disagree ——
             t("Watching a series ahead of your partner is a crime.", .funny),
             t("Long-distance made us stronger.", .deep),
-            q("What tiny moment with me do you replay in your head?", .romantic),
-            q("What's the best way for me to say sorry to you?", .conflict),
+            t("Date night should be weekly, not optional.", .romantic),
+            t("Phones should stay out of the bedroom.", .habits),
+            t("It's okay to need a night alone sometimes.", .deep),
+            t("Saying \"I'm fine\" when you're not is never okay.", .communication),
+            t("Surprise visits are romantic.", .romantic),
+            t("We should always celebrate small wins together.", .goals),
+            t("Sharing passwords is a trust issue, not a love issue.", .deep, premium: true),
+            t("Matching outfits are cute, not cringe.", .funny),
+            t("A good apology matters more than a gift.", .conflict),
+            t("We argue because we care, not because we're incompatible.", .conflict),
+            t("Brunch counts as a personality.", .funny),
+            t("It's romantic to grocery shop together.", .romantic),
+            t("We should travel somewhere new every year.", .travel),
+            t("Pets are practice for parenting.", .family),
+            t("Honesty always beats kindness when they conflict.", .deep),
+            t("Quality time beats expensive gifts.", .loveLanguages),
+            t("We should have a shared savings goal.", .money),
+            t("Laughing together is our strongest glue.", .romantic),
         ]
     }()
 }
@@ -372,6 +542,37 @@ public struct DemoQuestionService: QuestionService {
             myAnswer: mine,
             partnerHasAnswered: partners != nil,
             revealedAnswers: (mine != nil && partners != nil) ? answers : [])
+    }
+}
+
+public struct DemoGameService: GameService {
+    public init() {}
+
+    public func deck(game: CoupleGame, relationship: RelationshipID, me: UserID) async throws -> [GamePromptState] {
+        let prompts = GameBank.prompts(for: game)
+        let all = await DemoStore.shared.gameAnswers
+        return prompts.map { prompt in
+            let answers = all["\(game.rawValue)_\(prompt.id)"] ?? []
+            return assemble(prompt, answers: answers, me: me)
+        }
+    }
+
+    public func submitChoice(game: CoupleGame, prompt: GamePrompt, choice: String,
+                             choiceLabel: String, relationship: RelationshipID,
+                             author: UserID) async throws -> GamePromptState {
+        let answer = GameAnswer(gameID: game.rawValue, promptID: prompt.id,
+                                authorID: author, choice: choice, choiceLabel: choiceLabel)
+        await DemoStore.shared.addGameAnswer(answer)
+        let answers = await DemoStore.shared.gameAnswers["\(game.rawValue)_\(prompt.id)"] ?? []
+        return assemble(prompt, answers: answers, me: author)
+    }
+
+    private func assemble(_ prompt: GamePrompt, answers: [GameAnswer], me: UserID) -> GamePromptState {
+        let mine = answers.first { $0.authorID == me }
+        let partner = answers.first { $0.authorID != me }
+        return GamePromptState(prompt: prompt, myAnswer: mine,
+                               partnerHasAnswered: partner != nil,
+                               revealedAnswers: (mine != nil && partner != nil) ? answers : [])
     }
 }
 

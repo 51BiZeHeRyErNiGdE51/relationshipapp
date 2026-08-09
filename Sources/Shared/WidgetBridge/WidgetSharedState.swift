@@ -230,6 +230,21 @@ public enum WidgetContent {
         photoURL(slot).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
 
+    /// Wipe everything the ex partner left on this device (photo, secret note,
+    /// sync stamps). Called when the relationship ends — locally or remotely —
+    /// so "From Your Love" / Secret Message never keep an ex's content.
+    public static func clearPartnerContent() {
+        removePhoto(.partner)
+        AppGroup.defaults.removeObject(forKey: noteKey(.partner))
+        AppGroup.defaults.removeObject(forKey: "lovio.widget.note.syncedAt")
+        AppGroup.defaults.removeObject(forKey: "lovio.widget.photo.syncedAt")
+        AppGroup.defaults.removeObject(forKey: "lovio.secret.revealed")
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: "polaroid_partner")
+        WidgetCenter.shared.reloadTimelines(ofKind: "secret_message")
+        #endif
+    }
+
     /// Targeted reloads: blanket reloadAllTimelines() burns the WidgetKit
     /// refresh budget and iOS starts throttling — which shows up as "I set a
     /// photo but the widget didn't change". Only poke the affected kinds.

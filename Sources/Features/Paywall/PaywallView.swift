@@ -69,8 +69,8 @@ struct PaywallView: View {
 
     // Design rules:
     // 1. NO scrolling — full prices, math and CTA all visible at once.
-    // 2. Full price is the biggest number on each offer (App Review wants the
-    //    real price unmissable); per-week-per-person is the supporting math.
+    // 2. Lead with per-week-per-person (the "wow, cheap" frame); keep the
+    //    real App Store price visible underneath for honesty + App Review.
     // 3. CTA sits at the exact same spot as the tutorial's Continue button.
     private var mainContent: some View {
         VStack(spacing: 0) {
@@ -256,15 +256,15 @@ struct PaywallView: View {
                         }
                     }
                 }
-                Text(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))
+                Text("≈ \(offer.formattedPerWeekPerPerson())")
                     .font(.system(size: 40, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
-                Text("per year · both partners included · no free trial")
+                Text("/week /person — both of you")
+                    .font(Lovio.Type_.headline)
+                    .foregroundStyle(.white.opacity(0.85))
+                Text("\(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))/year · no free trial")
                     .font(Lovio.Type_.caption)
-                    .foregroundStyle(.white.opacity(0.7))
-                Text("≈ \(offer.formattedPerWeekPerPerson()) /week /person")
-                    .font(Lovio.Type_.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.6))
                     .padding(.top, 2)
             }
             .padding(.vertical, 18)
@@ -393,15 +393,18 @@ struct PaywallView: View {
                     }
                 }
                 Spacer()
-                // Full price leads (App Review compliance); our per-person
-                // framing is the caption underneath.
+                // Lead with weekly-per-person (conversion frame); App Store
+                // period price stays visible below for clarity + Review.
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))\(priceSuffix(offer))")
-                        .font(.system(.headline, design: .rounded, weight: .heavy))
+                    Text("≈ \(offer.formattedPerWeekPerPerson())")
+                        .font(.system(.title3, design: .rounded, weight: .heavy))
                         .foregroundStyle(.white)
-                    Text("≈ \(offer.formattedPerWeekPerPerson()) /week /person")
+                    Text("/week /person")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.75))
+                    Text("\(offer.totalPrice.formatted(.currency(code: offer.currencyCode)))\(priceSuffix(offer))")
                         .font(Lovio.Type_.caption)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.55))
                 }
             }
             .padding(16)

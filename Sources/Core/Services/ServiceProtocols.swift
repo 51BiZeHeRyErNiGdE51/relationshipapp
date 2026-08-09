@@ -77,6 +77,14 @@ public protocol QuestionService: Sendable {
     func history(relationship: RelationshipID, limit: Int) async throws -> [DailyQuestionState]
 }
 
+public protocol GameService: Sendable {
+    /// All prompts for a game with this couple's answer status.
+    func deck(game: CoupleGame, relationship: RelationshipID, me: UserID) async throws -> [GamePromptState]
+    func submitChoice(game: CoupleGame, prompt: GamePrompt, choice: String,
+                      choiceLabel: String, relationship: RelationshipID,
+                      author: UserID) async throws -> GamePromptState
+}
+
 public protocol JournalService: Sendable {
     func entries(relationship: RelationshipID) async throws -> [JournalEntry]
     func add(_ entry: JournalEntry, relationship: RelationshipID) async throws

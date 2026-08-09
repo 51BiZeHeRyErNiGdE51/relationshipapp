@@ -167,7 +167,18 @@ struct WidgetGalleryView: View {
 
     @ViewBuilder
     private var distanceCard: some View {
-        if model.distanceEnabled {
+        if !model.isPaired {
+            GlassCard(tint: Lovio.Palette.lavender) {
+                HStack(spacing: 10) {
+                    Image(systemName: "location.slash")
+                        .foregroundStyle(Lovio.Palette.lavender)
+                    Text("Distance unlocks when you're paired — and turns off the moment you unpair.")
+                        .font(Lovio.Type_.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+        } else if model.distanceEnabled {
             GlassCard(tint: Lovio.Palette.lavender) {
                 HStack(spacing: 10) {
                     Image(systemName: "location.fill")

@@ -13,4 +13,10 @@ enum L10n {
     static func s(_ key: String.LocalizationValue, _ args: CVarArg...) -> String {
         String(format: String(localized: key), locale: .current, arguments: args)
     }
+
+    /// Localize an English source string stored in question/game banks.
+    /// Keys in `Localizable.xcstrings` are the English originals.
+    static func copy(_ english: String) -> String {
+        String(localized: String.LocalizationValue(english))
+    }
 }

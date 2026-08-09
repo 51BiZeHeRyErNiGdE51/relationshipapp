@@ -40,17 +40,17 @@ struct OnboardingFlowView: View {
     }
 
     private let pages: [TutorialPage] = [
-        .init(symbol: "bubble.left.and.bubble.right.fill",
-              title: "One question.\nEvery day.",
-              subtitle: "You both answer blind — answers unlock only when you've both replied. The little ritual couples look forward to.",
-              tint: Lovio.Palette.lavender),
-        .init(symbol: "square.grid.2x2.fill",
-              title: "Your home screens,\nconnected.",
-              subtitle: "Moods, countdowns, secret notes and a heartbeat that pulses when you're both online — live on your home screen, no app opening needed.",
+        .init(symbol: "photo.on.rectangle.angled",
+              title: "Any photo.\nOn their home screen.",
+              subtitle: "Send whatever you want straight to your partner's widget — a selfie, a meme, a quiet moment. Only the two of you can see it. Private, encrypted, never shared.",
               tint: Lovio.Palette.rose),
-        .init(symbol: "camera.macro",
-              title: "Grow something\ntogether.",
-              subtitle: "A shared garden that blooms when you show up for each other — and wilts when you don't. Streaks, memories, milestones. All of it, yours.",
+        .init(symbol: "bell.badge.fill",
+              title: "Love, hugs &\nmiss-you — as a ping.",
+              subtitle: "Tap Love, Hug or Miss you and it lands as a push on their phone — even when the app is closed. Little signals that say you're thinking of them right now.",
+              tint: Lovio.Palette.lavender),
+        .init(symbol: "lock.rectangle.on.rectangle.fill",
+              title: "Secret notes\njust for them.",
+              subtitle: "Leave a private message on their home screen. Sealed for their eyes only — the same quiet privacy as every photo you send.",
               tint: Lovio.Palette.teal),
     ]
 
@@ -92,14 +92,10 @@ struct OnboardingFlowView: View {
                                 .frame(width: 130, height: 130)
                                 .blur(radius: 46)
                                 .opacity(0.45)
-                            if index == 0 {
-                                MissuoLogoMark(size: 112, shadow: true)
-                            } else {
-                                Image(systemName: item.symbol)
-                                    .font(.system(size: 76))
-                                    .foregroundStyle(Lovio.Gradients.hero)
-                                    .symbolEffect(.pulse)
-                            }
+                            Image(systemName: item.symbol)
+                                .font(.system(size: 76))
+                                .foregroundStyle(Lovio.Gradients.hero)
+                                .symbolEffect(.pulse)
                         }
                         // LocalizedStringKey(...) so the catalog translations apply
                         // (plain String properties render verbatim).

@@ -18,7 +18,7 @@ struct DailyQuestionView: View {
                     if let state = model.questionState {
                         categoryPill(state.question.category)
 
-                        Text(state.question.text)
+                        Text(L10n.copy(state.question.text))
                             .font(Lovio.Type_.largeTitle)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 8)
@@ -155,7 +155,7 @@ struct DailyQuestionView: View {
         } label: {
             VStack(spacing: 8) {
                 Text(agree ? "👍" : "👎").font(.system(size: 44))
-                Text(agree ? "Agree" : "Disagree")
+                Text(agree ? L10n.copy("Agree") : L10n.copy("Disagree"))
                     .font(Lovio.Type_.headline)
             }
             .frame(maxWidth: .infinity)
@@ -329,7 +329,7 @@ struct AnswerDisplay: View {
                     .font(Lovio.Type_.headline)
                     .foregroundStyle(Lovio.Palette.rose)
             case .thumbs:
-                Label(answer.rating == 1 ? "Agree" : "Disagree",
+                Label(answer.rating == 1 ? L10n.copy("Agree") : L10n.copy("Disagree"),
                       systemImage: answer.rating == 1 ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
                     .font(Lovio.Type_.headline)
                     .foregroundStyle(answer.rating == 1 ? Lovio.Palette.teal : Lovio.Palette.gold)
@@ -384,7 +384,7 @@ struct QuestionArchiveView: View {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .top) {
-                                Text("\(state.question.category.emoji) \(state.question.text)")
+                                Text("\(state.question.category.emoji) \(L10n.copy(state.question.text))")
                                     .font(Lovio.Type_.headline)
                                 Spacer()
                                 if let match = QuestionAlignment.matchPercent(state) {
