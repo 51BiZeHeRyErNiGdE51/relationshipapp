@@ -866,6 +866,34 @@ final class AppModel {
         publishWidgetSnapshot()
     }
 
+    /// Local Premium unlock for App Store screenshots while products are still
+    /// pending approval. Persists across relaunches; clear via Settings.
+    func grantScreenshotPremium() async {
+        guard RevenueCatBootstrap.allowsFakePremium, let me = user else { return }
+        if let state = try? await DemoPremiumService().purchase(
+            offerID: "screenshot_yearly", me: me.id, relationship: relationship?.id) {
+            premium = state
+            AppGroup.defaults.set(true, forKey: "missuo.widget.isPremium")
+            publishWidgetSnapshot()
+            Haptics.celebration()
+        }
+    }
+
+    /// Deep links from widgets / ads. `missuo://paywall` opens the paywall.
+    var pendingPaywallSource: String?
+
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "missuo" else { return }
+        let host = (url.host ?? "").lowercased()
+        let path = url.path.lowercased()
+        if host == "paywall" || path == "/paywall" || host == "premium" {
+            let source = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "source" })?.value
+                ?? "deep_link"
+            pendingPaywallSource = source
+        }
+    }
+
     func restorePurchases() async {
         guard let user else { return }
         if let state = try? await services.premium.restorePurchases(me: user.id) {

@@ -790,6 +790,7 @@ public enum LovioError: LocalizedError {
     case relationshipFull
     case notSignedIn
     case premiumRequired
+    case purchaseUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -798,6 +799,7 @@ public enum LovioError: LocalizedError {
         case .relationshipFull: "This relationship already has two partners."
         case .notSignedIn: "Please sign in first."
         case .premiumRequired: "This feature is part of Missuo Premium."
+        case .purchaseUnavailable: "Purchases aren't available right now. Please try again in a moment."
         }
     }
 }

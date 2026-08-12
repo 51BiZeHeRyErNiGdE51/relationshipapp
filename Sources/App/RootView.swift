@@ -122,8 +122,20 @@ struct MainTabView: View {
                 withAnimation(.smooth) { loveBurst = nil }
             }
         }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView(source: "session_start")
+        .sheet(isPresented: $showPaywall, onDismiss: {
+            model.pendingPaywallSource = nil
+        }) {
+            PaywallView(source: model.pendingPaywallSource ?? "session_start")
+        }
+        .onOpenURL { url in
+            model.handleDeepLink(url)
+            if model.pendingPaywallSource != nil, !model.premium.isPremium {
+                showPaywall = true
+            }
+        }
+        .onChange(of: model.pendingPaywallSource) { _, source in
+            guard source != nil, !model.premium.isPremium else { return }
+            showPaywall = true
         }
         .task {
             // Fresh data on cold start (pairing status, partner photo, jar).
@@ -131,7 +143,12 @@ struct MainTabView: View {
             // Strict order, one thing on screen at a time:
             // 1) ATT dialog  2) push dialog  3) (maybe) daily paywall.
             await model.runPermissionPrompts()
-            maybeShowSessionPaywall()
+            // Widget deep link that woke the app — show paywall before the soft session sheet.
+            if model.pendingPaywallSource != nil, !model.premium.isPremium {
+                showPaywall = true
+            } else {
+                maybeShowSessionPaywall()
+            }
             // Gentle foreground poll so the partner joining, hearts and
             // widget photos show up WITHOUT pull-to-refresh.
             while !Task.isCancelled {

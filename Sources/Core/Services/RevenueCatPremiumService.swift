@@ -17,19 +17,54 @@ import RevenueCat
 
 enum RevenueCatBootstrap {
     /// RevenueCat PUBLIC SDK key — safe to ship in the binary.
-    /// Currently the Test Store key (fake purchases, no App Store needed).
-    /// Before release: replace with the Apple App Store key ("appl_…") from
-    /// RevenueCat → Project Settings → API Keys.
-    static let apiKey = ProcessInfo.processInfo.environment["REVENUECAT_API_KEY"]
-        ?? "test_NKYaJmNPYQDHQHnmuarVjdgzaKq"
+    /// Priority: process env → Info.plist `RevenueCatPublicAPIKey` → DEBUG Test Store.
+    /// App Store archives MUST set the Apple key (`appl_…`) in Info.plist
+    /// (RevenueCat → Project settings → API keys → Apple App Store).
+    static var apiKey: String {
+        if let env = ProcessInfo.processInfo.environment["REVENUECAT_API_KEY"], !env.isEmpty {
+            return env
+        }
+        if let plist = Bundle.main.object(forInfoDictionaryKey: "RevenueCatPublicAPIKey") as? String,
+           !plist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !plist.hasPrefix("$(") {
+            return plist
+        }
+        #if DEBUG
+        return "test_NKYaJmNPYQDHQHnmuarVjdgzaKq"
+        #else
+        return ""
+        #endif
+    }
+
     static let entitlementID = "premium"
+
+    /// True when we're on the Test Store key (or DEBUG without an Apple key).
+    static var isTestStore: Bool {
+        apiKey.hasPrefix("test_") || apiKey.isEmpty
+    }
+
+    /// Local fake / screenshot Premium is allowed only off the App Store binary.
+    static var allowsFakePremium: Bool {
+        #if DEBUG
+        true
+        #else
+        isTestStore
+        #endif
+    }
 
     /// Configure at app LAUNCH (anonymous RevenueCat user). The onboarding
     /// paywall shows before our sign-in exists — without this it fell back to
     /// hardcoded demo prices, which made the app look like it had two
     /// different paywall designs with different prices.
     static func configureEarly() {
-        guard !apiKey.isEmpty, !Purchases.isConfigured else { return }
+        guard !apiKey.isEmpty, !Purchases.isConfigured else {
+            #if DEBUG
+            if apiKey.isEmpty {
+                print("RevenueCat: no API key — purchases will use demo fallback")
+            }
+            #endif
+            return
+        }
         Purchases.logLevel = .warn
         Purchases.configure(withAPIKey: apiKey)
     }
@@ -54,15 +89,21 @@ struct RevenueCatPremiumService: PremiumService {
     private var db: Firestore { Firestore.firestore() }
 
     func premiumState(relationship: Relationship?, me: UserID) async -> PremiumState {
-        // Fake-purchase mode while RevenueCat is not wired: state persists
-        // locally so paid/unpaid flows are fully testable.
+        // Screenshot / Test Store unlock only — never honor UserDefaults fake
+        // Premium in App Store binaries (would be a free unlock exploit).
+        if RevenueCatBootstrap.allowsFakePremium {
+            let demo = await DemoPremiumService().premiumState(relationship: relationship, me: me)
+            if demo.isPremium { return demo }
+        }
+
         guard RevenueCatBootstrap.isConfigured else {
-            return await DemoPremiumService().premiumState(relationship: relationship, me: me)
+            return RevenueCatBootstrap.allowsFakePremium
+                ? await DemoPremiumService().premiumState(relationship: relationship, me: me)
+                : .free
         }
 
         // 1. My own entitlement (purchaser keeps premium across relationships).
-        if RevenueCatBootstrap.isConfigured,
-           let info = try? await Purchases.shared.customerInfo(),
+        if let info = try? await Purchases.shared.customerInfo(),
            let entitlement = info.entitlements[RevenueCatBootstrap.entitlementID],
            entitlement.isActive {
             let state = PremiumState(
@@ -96,11 +137,17 @@ struct RevenueCatPremiumService: PremiumService {
 
     func offers() async throws -> [PaywallOffer] {
         guard RevenueCatBootstrap.isConfigured else {
+            guard RevenueCatBootstrap.allowsFakePremium else {
+                throw LovioError.notSignedIn
+            }
             return try await DemoPremiumService().offers()
         }
         let offerings = try await Purchases.shared.offerings()
         guard let current = offerings.current, !current.availablePackages.isEmpty else {
             print("RevenueCat: no current offering with packages — using demo offers")
+            guard RevenueCatBootstrap.allowsFakePremium else {
+                throw LovioError.notSignedIn
+            }
             return try await DemoPremiumService().offers()
         }
         // Paywall 1 ONLY: yearly_1 + monthly. yearly_2 is reserved for the
@@ -193,6 +240,7 @@ struct RevenueCatPremiumService: PremiumService {
     /// identifier "secondary" holding one package (e.g. yearly at 50% off).
     func secondaryOffer() async throws -> PaywallOffer? {
         guard RevenueCatBootstrap.isConfigured else {
+            guard RevenueCatBootstrap.allowsFakePremium else { return nil }
             return try await DemoPremiumService().secondaryOffer()
         }
         let offerings = try await Purchases.shared.offerings()
@@ -216,17 +264,21 @@ struct RevenueCatPremiumService: PremiumService {
 
     func purchase(offerID: String, me: UserID, relationship: RelationshipID?) async throws -> PremiumState {
         guard RevenueCatBootstrap.isConfigured else {
+            guard RevenueCatBootstrap.allowsFakePremium else {
+                throw LovioError.purchaseUnavailable
+            }
             return try await DemoPremiumService().purchase(offerID: offerID, me: me, relationship: relationship)
         }
         let offerings = try await Purchases.shared.offerings()
         let allPackages = (offerings.current?.availablePackages ?? [])
             + (offerings.offering(identifier: "secondary")?.availablePackages ?? [])
         guard let package = allPackages.first(where: { $0.identifier == offerID }) else {
-            // The offer on screen came from the demo fallback (no Current
-            // offering configured yet) — complete it as a fake purchase so
-            // the button always works during setup.
-            print("RevenueCat: package \(offerID) not found — demo purchase fallback")
-            return try await DemoPremiumService().purchase(offerID: offerID, me: me, relationship: relationship)
+            // Demo fallback only while Test Store / products are unfinished.
+            if RevenueCatBootstrap.allowsFakePremium {
+                print("RevenueCat: package \(offerID) not found — demo purchase fallback")
+                return try await DemoPremiumService().purchase(offerID: offerID, me: me, relationship: relationship)
+            }
+            throw LovioError.purchaseUnavailable
         }
 
         let result = try await Purchases.shared.purchase(package: package)
@@ -244,6 +296,7 @@ struct RevenueCatPremiumService: PremiumService {
 
     func restorePurchases(me: UserID) async throws -> PremiumState {
         guard RevenueCatBootstrap.isConfigured else {
+            guard RevenueCatBootstrap.allowsFakePremium else { return .free }
             return try await DemoPremiumService().restorePurchases(me: me)
         }
         let info = try await Purchases.shared.restorePurchases()

@@ -15,6 +15,9 @@ struct LovioApp: App {
                 // requested here — AppModel.runPermissionPrompts() asks them
                 // one at a time once the user reaches the main screen.
                 .task { await model.start() }
+                .onOpenURL { url in
+                    model.handleDeepLink(url)
+                }
         }
     }
 }

@@ -28,6 +28,9 @@ enum MetaBootstrap {
             #endif
             return
         }
+        // FBSDK aborts if our Privacy Manifest lists facebook.com tracking domains
+        // (it ships its own). Keep this false as a safety belt.
+        Settings.shared.isDomainErrorEnabled = false
         ApplicationDelegate.shared.application(application,
                                                didFinishLaunchingWithOptions: launchOptions)
         isConfigured = true

@@ -582,6 +582,12 @@ struct SettingsView: View {
     @State private var nameSaved = false
     @State private var showAnniversaryEditor = false
 
+    /// Unlock Premium without App Store approval — DEBUG builds always, or
+    /// when RevenueCat is still on the Test Store key.
+    private static var allowsScreenshotPremium: Bool {
+        RevenueCatBootstrap.allowsFakePremium
+    }
+
     private var nameChanged: Bool {
         let trimmed = nameDraft.trimmingCharacters(in: .whitespaces)
         return !trimmed.isEmpty && trimmed != (model.needsMyName ? "" : model.myName)
@@ -645,24 +651,26 @@ struct SettingsView: View {
                 Button("Restore purchases") {
                     Task { await model.restorePurchases() }
                 }
-                #if DEBUG
-                if model.premium.isPremium {
-                    // Test builds: clears local fake premium + the shared
-                    // Firestore mirror so the partner also drops to Free.
-                    // A real RevenueCat Test Store entitlement also needs the
-                    // customer deleted in the RevenueCat dashboard.
-                    Button("Switch back to Free (test)", role: .destructive) {
-                        DemoPremiumService.resetFakePurchase()
-                        Task {
-                            if let rel = model.relationship {
-                                await RevenueCatPremiumService.clearMirror(on: rel.id)
+                // Screenshot / pre-approval unlock — works while ASC products
+                // are still "Ready for Review" and RC Test Store is active.
+                if Self.allowsScreenshotPremium {
+                    if model.premium.isPremium {
+                        Button("Switch back to Free (test)", role: .destructive) {
+                            DemoPremiumService.resetFakePurchase()
+                            Task {
+                                if let rel = model.relationship {
+                                    await RevenueCatPremiumService.clearMirror(on: rel.id)
+                                }
+                                AppGroup.defaults.set(false, forKey: "missuo.widget.isPremium")
+                                await model.refreshPremium()
                             }
-                            AppGroup.defaults.set(false, forKey: "missuo.widget.isPremium")
-                            await model.refreshPremium()
+                        }
+                    } else {
+                        Button("Become Premium (screenshots)") {
+                            Task { await model.grantScreenshotPremium() }
                         }
                     }
                 }
-                #endif
             }
 
             Section("Notifications") {

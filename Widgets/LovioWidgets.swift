@@ -28,12 +28,14 @@ private struct PremiumLockedView: View {
 
 extension View {
     /// Premium widgets: real content for premium couples, a warm lock for free.
+    /// Tapping the lock opens Missuo on the paywall.
     @ViewBuilder
     func premiumGate(_ snapshot: WidgetSnapshot) -> some View {
         if snapshot.isPremium {
             self
         } else {
             PremiumLockedView()
+                .widgetURL(URL(string: "missuo://paywall?source=premium_widget"))
         }
     }
 }
