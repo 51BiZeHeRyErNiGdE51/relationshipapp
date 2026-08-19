@@ -219,7 +219,8 @@ public protocol AnalyticsClient: Sendable {
 }
 
 public protocol ExperimentsService: Sendable {
-    /// Remote-config backed variant lookup, e.g. "paywall_headline" → "b".
+    /// Remote-config backed variant lookup, e.g. "paywall_headline" → "b",
+    /// "paywall_cta" → "control" or "Try Free"; "paywall_cta_secondary" for the decline offer.
     func variant(for experiment: String) -> String
     func refresh() async
 }

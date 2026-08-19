@@ -21,8 +21,11 @@ enum AdsManager {
 
     private static var isStarted = false
 
+    /// Flip to `false` for screenshots / recordings (no banner, no AdMob load).
+    static var areEnabled = true
+
     static func ensureStarted() {
-        guard !isStarted else { return }
+        guard areEnabled, !isStarted else { return }
         isStarted = true
         MobileAds.shared.start(completionHandler: nil)
     }

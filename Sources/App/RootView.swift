@@ -61,6 +61,9 @@ struct RootView: View {
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var showPaywall = false
+    @State private var showRateUs = false
+    @State private var showPushPrompt = false
+    @State private var pendingRateUs = false
     @State private var loveBurst: HomeView.HeartBurst?
 
     var body: some View {
@@ -93,6 +96,45 @@ struct MainTabView: View {
                 HeartBurstView(burst: burst)
             }
         }
+        .overlay {
+            if showPushPrompt {
+                MissuoPromptCard(
+                    symbol: "bell.badge.fill",
+                    title: "Don't miss a hug",
+                    message: "Love, hugs and miss-yous land as a ping — even when Missuo is closed. We'll only notify you when they send something.",
+                    primaryTitle: "Turn on pings",
+                    secondaryTitle: "Not now"
+                ) {
+                    showPushPrompt = false
+                    Task {
+                        await model.requestPushPermission()
+                        finishAfterPushPrompt()
+                    }
+                } onSecondary: {
+                    showPushPrompt = false
+                    finishAfterPushPrompt()
+                }
+                .transition(.opacity)
+            } else if showRateUs {
+                MissuoPromptCard(
+                    symbol: "star.fill",
+                    title: "Enjoying Missuo?",
+                    message: "A quick App Store rating helps other couples find us. Takes ten seconds — thank you 💛",
+                    primaryTitle: "Rate Us",
+                    secondaryTitle: "Not now"
+                ) {
+                    RateUsPrompt.markPromptShown()
+                    showRateUs = false
+                    RateUsPrompt.openAppStore()
+                } onSecondary: {
+                    RateUsPrompt.markPromptShown()
+                    showRateUs = false
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.smooth, value: showPushPrompt)
+        .animation(.smooth, value: showRateUs)
         .onChange(of: model.incomingLove) { _, love in
             guard let love else { return }
             let who = model.partnerFirstName ?? L10n.s("Your love")
@@ -124,6 +166,10 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showPaywall, onDismiss: {
             model.pendingPaywallSource = nil
+            if pendingRateUs {
+                pendingRateUs = false
+                showRateUs = true
+            }
         }) {
             PaywallView(source: model.pendingPaywallSource ?? "session_start")
         }
@@ -138,19 +184,20 @@ struct MainTabView: View {
             showPaywall = true
         }
         .task {
-            // Fresh data on cold start (pairing status, partner photo, jar).
+            RateUsPrompt.markSessionStarted()
             await model.refreshToday()
-            // Strict order, one thing on screen at a time:
-            // 1) ATT dialog  2) push dialog  3) (maybe) daily paywall.
             await model.runPermissionPrompts()
-            // Widget deep link that woke the app — show paywall before the soft session sheet.
-            if model.pendingPaywallSource != nil, !model.premium.isPremium {
-                showPaywall = true
+            if await model.needsPushPrePrompt() {
+                showPushPrompt = true
             } else {
-                maybeShowSessionPaywall()
+                await model.requestPushPermission()
+                if model.pendingPaywallSource != nil, !model.premium.isPremium {
+                    showPaywall = true
+                } else {
+                    maybeShowSessionPaywall()
+                }
             }
-            // Gentle foreground poll so the partner joining, hearts and
-            // widget photos show up WITHOUT pull-to-refresh.
+            Task { await scheduleRateUsIfNeeded() }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 await model.refreshToday()
@@ -161,9 +208,33 @@ struct MainTabView: View {
             Task {
                 await model.drainWidgetOutbox()
                 await model.refreshToday()
-                // Picks up the user flipping notifications on in Settings.
                 await model.refreshNotificationStatus()
             }
+        }
+    }
+
+    /// First two sessions only: after ~1 minute on the main screen, ask once
+    /// per session (max two asks total). If a paywall is up, wait until it closes.
+    private func scheduleRateUsIfNeeded() async {
+        guard RateUsPrompt.shouldSchedulePrompt() else { return }
+        try? await Task.sleep(nanoseconds: RateUsPrompt.delayNanoseconds)
+        guard !Task.isCancelled, RateUsPrompt.shouldSchedulePrompt() else { return }
+        if showPaywall || showPushPrompt {
+            pendingRateUs = true
+        } else {
+            showRateUs = true
+        }
+    }
+
+    private func finishAfterPushPrompt() {
+        if model.pendingPaywallSource != nil, !model.premium.isPremium {
+            showPaywall = true
+        } else {
+            maybeShowSessionPaywall()
+        }
+        if pendingRateUs, !showPaywall {
+            pendingRateUs = false
+            showRateUs = true
         }
     }
 
@@ -193,7 +264,7 @@ struct MainTabView: View {
     private func withStickyBanner<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         NavigationStack { content() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !model.premium.isPremium {
+                if AdsManager.areEnabled, !model.premium.isPremium {
                     StickyAdBanner()
                 }
             }

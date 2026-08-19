@@ -510,6 +510,11 @@ final class RemoteConfigExperiments: ExperimentsService, @unchecked Sendable {
         config.configSettings = settings
         config.setDefaults([
             "paywall_headline": "control" as NSString,
+            // `control` = billed amount is the CTA (App Review 3.1.2(c)).
+            // After approval, set this to a one-line label e.g. "Try Free".
+            "paywall_cta": "control" as NSString,
+            // Decline / gift paywall button. Same rules as paywall_cta.
+            "paywall_cta_secondary": "control" as NSString,
             "onboarding_order": "control" as NSString,
             "daily_reminder_hour": "20" as NSString,
         ])

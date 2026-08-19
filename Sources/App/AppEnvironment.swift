@@ -201,22 +201,26 @@ final class AppModel {
         try? await Task.sleep(for: .seconds(1.2))
         if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
             _ = await ATTrackingManager.requestTrackingAuthorization()
-            // Breathing room between the two dialogs.
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .seconds(0.6))
         }
+        // Push uses a branded pre-prompt (MainTabView) before the system sheet.
+        await refreshNotificationStatus()
+    }
 
-        let center = UNUserNotificationCenter.current()
-        if await center.notificationSettings().authorizationStatus == .notDetermined {
-            await NotificationManager.shared.requestPermissionsAndSchedule(
-                reminderHour: Int(services.experiments.variant(for: "daily_reminder_hour")) ?? 20)
-        }
-        // Critical: register with APNs AFTER the user grants permission so
-        // Firebase gets a real device token (not a ghost from launch-time).
+    /// True when we can still show our own "turn on hugs" card before iOS asks.
+    func needsPushPrePrompt() async -> Bool {
+        guard !ProcessInfo.processInfo.arguments.contains("-skip-permission-prompts") else { return false }
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        return status == .notDetermined
+    }
+
+    func requestPushPermission() async {
+        await NotificationManager.shared.requestPermissionsAndSchedule(
+            reminderHour: Int(services.experiments.variant(for: "daily_reminder_hour")) ?? 20)
         await MainActor.run {
             UIApplication.shared.registerForRemoteNotifications()
         }
         await refreshNotificationStatus()
-        // Push the FCM token to Firestore immediately.
         await syncMyPresence()
     }
 

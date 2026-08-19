@@ -88,7 +88,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/Lovio.entitlements
-        CURRENT_PROJECT_VERSION: 3
+        CURRENT_PROJECT_VERSION: 4
         MARKETING_VERSION: 1.0.0
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         OTHER_LDFLAGS: "$(inherited) -ObjC"
@@ -101,6 +101,8 @@ targets:
       path: Config/Lovio-Info.plist
       properties:
         CFBundleDisplayName: Missuo
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # Apple App Store public SDK key (RevenueCat → Project settings → API keys).
         RevenueCatPublicAPIKey: "appl_dhTjZcLGCpygTpPiMXhGjbQxRaF"
         # Plain launch screen: iOS caches launch screens aggressively and a
@@ -261,12 +263,14 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/LovioWidgets.entitlements
-        CURRENT_PROJECT_VERSION: 3
+        CURRENT_PROJECT_VERSION: 4
         MARKETING_VERSION: 1.0.0
     info:
       path: Config/LovioWidgets-Info.plist
       properties:
         CFBundleDisplayName: Missuo Widgets
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "4"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 

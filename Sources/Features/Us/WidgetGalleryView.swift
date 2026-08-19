@@ -694,16 +694,28 @@ struct SettingsView: View {
             }
 
             Section {
-                // Opens the user's own mail app (Mail, Gmail, …) — no
-                // in-app email system.
+                Button {
+                    RateUsPrompt.openAppStore()
+                } label: {
+                    Label("Rate Us", systemImage: "star.fill")
+                }
                 Link(destination: URL(string:
                     "mailto:atlasvale@bsekapps.com?subject=Missuo%20Feedback")!) {
-                    Label("Contact us", systemImage: "envelope")
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Contact us")
+                            Text("atlasvale@bsekapps.com")
+                                .font(Lovio.Type_.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "envelope")
+                    }
                 }
             } header: {
                 Text("Support")
             } footer: {
-                Text("Questions, bugs, ideas — we read everything.")
+                Text("Questions, bugs, ideas — we read everything at atlasvale@bsekapps.com. Ratings help other couples find Missuo.")
             }
 
             Section {

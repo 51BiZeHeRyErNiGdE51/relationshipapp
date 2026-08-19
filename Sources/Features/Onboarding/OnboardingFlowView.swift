@@ -128,7 +128,7 @@ struct OnboardingFlowView: View {
             }
             .buttonStyle(LovioPrimaryButtonStyle())
             .padding(.horizontal, Lovio.Metrics.screenPadding)
-            .padding(.bottom, 24)
+            .padding(.bottom, Lovio.Metrics.ctaBottomPadding)
         }
     }
 }

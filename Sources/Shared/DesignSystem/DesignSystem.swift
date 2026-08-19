@@ -77,6 +77,10 @@ public enum Lovio {
         public static let cardPadding: CGFloat = 18
         public static let screenPadding: CGFloat = 20
         public static let sectionSpacing: CGFloat = 24
+        /// Shared Continue / paywall CTA: same height + bottom inset so the
+        /// thumb doesn't move from tutorial → Get started → purchase.
+        public static let ctaVerticalPadding: CGFloat = 16
+        public static let ctaBottomPadding: CGFloat = 24
     }
 }
 
@@ -129,7 +133,7 @@ public struct LovioPrimaryButtonStyle: ButtonStyle {
             .font(Lovio.Type_.headline)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, Lovio.Metrics.ctaVerticalPadding)
             .background {
                 Capsule().fill(Lovio.Gradients.hero)
             }
