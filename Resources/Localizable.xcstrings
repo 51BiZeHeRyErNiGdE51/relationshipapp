@@ -718,6 +718,47 @@
         }
       }
     },
+    "%lld%% off Missuo Premium — for both of you. A few days left." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% Rabatt auf Missuo Premium – für Sie beide. Noch ein paar Tage."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% off Missuo Premium — for both of you. A few days left."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% de descuento en Missuo Premium, para los dos. Quedan unos días."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% de réduction sur Missuo Premium — pour vous deux. Il reste quelques jours."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missuo Premium %lld%% 할인 – 두 분 모두를 위한 상품입니다. 며칠 남았습니다."
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% de desconto no Missuo Premium – para vocês dois. Faltam alguns dias."
+          }
+        }
+      }
+    },
     "= %@ per week, per person — it covers both of you." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1913,6 +1954,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Um jardim partilhado que floresce quando cuidam um do outro — e murcha quando não. Sequências, memórias, marcos. Tudo isso, vosso."
+          }
+        }
+      }
+    },
+    "A special Missuo Premium offer — for both of you. A few days left." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein besonderes Missuo-Premium-Angebot – für Sie beide. Noch ein paar Tage."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A special Missuo Premium offer — for both of you. A few days left."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una oferta especial de Missuo Premium, para los dos. Quedan unos días."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une offre Premium Missuo spéciale — pour vous deux. Il reste quelques jours."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 분 모두를 위한 특별한 Missuo Premium 혜택입니다. 며칠 남았습니다."
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma oferta especial do Missuo Premium – para vocês dois. Faltam alguns dias."
           }
         }
       }
@@ -10698,6 +10780,47 @@
         }
       }
     },
+    "Last day: %lld%% off for you two" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzter Tag: %lld %% Rabatt für Sie beide"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last day: %lld%% off for you two"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último día: %lld%% de descuento para ustedes dos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernier jour : %lld%% de réduction pour vous deux"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 날: 두 분 모두 %lld%% 할인"
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último dia: %lld%% de desconto para vocês dois"
+          }
+        }
+      }
+    },
     "Last day: 50% off for you two" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10735,6 +10858,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Último dia: 50% de desconto para vocês dois"
+          }
+        }
+      }
+    },
+    "Last day: your couple's offer expires tomorrow" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzter Tag: Ihr Paar-Angebot endet morgen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last day: your couple's offer expires tomorrow"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último día: tu oferta de pareja caduca mañana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernier jour : votre offre couple expire demain"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 날: 커플 혜택이 내일 만료됩니다"
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último dia: sua oferta de casal expira amanhã"
           }
         }
       }
@@ -38551,7 +38715,53 @@
         }
       }
     },
+    "Your %@%% couple's offer" : {
+      "comment" : "A label that reads \"Your 20% couple's offer\" or \"Your couple's offer\" depending on whether the discount is 0% or not.",
+      "isCommentAutoGenerated" : true
+    },
+    "Your %lld%% couple's offer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr %lld %%-Angebot für Paare"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your %lld%% couple's offer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu oferta de pareja del %lld %%"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre offre couple à %lld %%"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% 커플 혜택"
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua oferta de casal de %lld%%"
+          }
+        }
+      }
+    },
     "Your 50% couple's offer" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38747,6 +38957,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Seu casal"
+          }
+        }
+      }
+    },
+    "Your couple's offer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Angebot für Paare"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your couple's offer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu oferta de pareja"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre offre couple"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커플 혜택"
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua oferta de casal"
           }
         }
       }

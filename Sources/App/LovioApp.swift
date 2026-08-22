@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate,
         _ = FirebaseBootstrap.configureIfPossible()
         UNUserNotificationCenter.current().delegate = self
         MetaBootstrap.configure(application: application, launchOptions: launchOptions)
+        TikTokBootstrap.configure()
         if FirebaseBootstrap.isConfigured {
             Messaging.messaging().delegate = self
             application.registerForRemoteNotifications()
@@ -213,20 +214,32 @@ final class NotificationManager {
     // MARK: Monetization reminders
 
     /// Two nudges inside the 7-day secondary-offer window.
-    func scheduleOfferReminders(deadline: Date) {
+    func scheduleOfferReminders(deadline: Date, discountPercent: Int?) {
         guard Pref.isOn(Pref.offersEnabled) else { return }
         let midpoint = deadline.addingTimeInterval(-4 * 86_400)
         let lastCall = deadline.addingTimeInterval(-1 * 86_400)
         Task {
             if midpoint > .now {
+                let body: String
+                if let percent = discountPercent {
+                    body = L10n.s("\(percent)% off Missuo Premium — for both of you. A few days left.")
+                } else {
+                    body = L10n.s("A special Missuo Premium offer — for both of you. A few days left.")
+                }
                 await schedule(id: "offer_reminder_mid",
                                title: L10n.s("Your couple's offer is waiting 💝"),
-                               body: L10n.s("50% off Missuo Premium — for both of you. A few days left."),
+                               body: body,
                                at: midpoint, hour: 19)
             }
             if lastCall > .now {
+                let title: String
+                if let percent = discountPercent {
+                    title = L10n.s("Last day: \(percent)% off for you two")
+                } else {
+                    title = L10n.s("Last day: your couple's offer expires tomorrow")
+                }
                 await schedule(id: "offer_reminder_last",
-                               title: L10n.s("Last day: 50% off for you two"),
+                               title: title,
                                body: L10n.s("Your discounted Premium offer expires tomorrow."),
                                at: lastCall, hour: 19)
             }

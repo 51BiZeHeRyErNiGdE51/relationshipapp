@@ -236,6 +236,13 @@ struct RevenueCatPremiumService: PremiumService {
         }
     }
 
+    /// Marks a PaywallOffer as coming from the "secondary" offering, so
+    /// purchase() resolves it there. Needed because RevenueCat package slots
+    /// (e.g. `$rc_annual`) can carry the SAME identifier in both offerings —
+    /// a bare identifier match used to buy yearly_1 (full price + trial)
+    /// when the user tapped pay on the discounted yearly_2 paywall.
+    private static let secondaryOfferIDPrefix = "secondary::"
+
     /// Discounted decline offer. Configure a RevenueCat offering with
     /// identifier "secondary" holding one package (e.g. yearly at 50% off).
     func secondaryOffer() async throws -> PaywallOffer? {
@@ -254,6 +261,7 @@ struct RevenueCatPremiumService: PremiumService {
             .map { $0.storeProduct.price }
 
         var offer = Self.offer(from: package)
+        offer.id = Self.secondaryOfferIDPrefix + package.identifier
         offer.isFeatured = true
         // yearly_2 never has a free trial — even if the store product was
         // misconfigured with one, the decline paywall must not advertise it.
@@ -270,9 +278,22 @@ struct RevenueCatPremiumService: PremiumService {
             return try await DemoPremiumService().purchase(offerID: offerID, me: me, relationship: relationship)
         }
         let offerings = try await Purchases.shared.offerings()
-        let allPackages = (offerings.current?.availablePackages ?? [])
-            + (offerings.offering(identifier: "secondary")?.availablePackages ?? [])
-        guard let package = allPackages.first(where: { $0.identifier == offerID }) else {
+        let package: Package?
+        if offerID.hasPrefix(Self.secondaryOfferIDPrefix) {
+            // Decline-offer purchase: resolve ONLY against the secondary
+            // offering (falling back to a yearly_2-style package in current).
+            // Never let it match the full-price yearly_1.
+            let rawID = String(offerID.dropFirst(Self.secondaryOfferIDPrefix.count))
+            let secondaryPackages = offerings.offering(identifier: "secondary")?.availablePackages ?? []
+            package = secondaryPackages.first { $0.identifier == rawID }
+                ?? secondaryPackages.first
+                ?? offerings.current?.availablePackages.first(where: Self.isSecondaryPackage)
+        } else {
+            // Main paywall: never resolve to the secondary/decline package.
+            package = offerings.current?.availablePackages
+                .first { $0.identifier == offerID && !Self.isSecondaryPackage($0) }
+        }
+        guard let package else {
             // Demo fallback only while Test Store / products are unfinished.
             if RevenueCatBootstrap.allowsFakePremium {
                 print("RevenueCat: package \(offerID) not found — demo purchase fallback")

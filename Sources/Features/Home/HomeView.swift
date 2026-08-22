@@ -43,7 +43,9 @@ struct HomeView: View {
                 offerChip
             }
             .padding(.horizontal, Lovio.Metrics.screenPadding)
-            .padding(.bottom, 32)
+            // Free users have the sticky ad banner pinned above the tab bar —
+            // extra bottom margin so the discount offer chip clears it fully.
+            .padding(.bottom, AdsManager.areEnabled && !model.premium.isPremium ? 96 : 32)
         }
         .scrollIndicators(.hidden)
         // No nav bar at all on Home — the greeting header row (logo +
@@ -94,8 +96,13 @@ struct HomeView: View {
                         Image(systemName: "gift.fill")
                             .foregroundStyle(Lovio.Palette.gold)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Your 50% couple's offer")
-                                .font(Lovio.Type_.headline)
+                            if let percent = model.secondaryDiscountPercent {
+                                Text("Your \(percent)% couple's offer")
+                                    .font(Lovio.Type_.headline)
+                            } else {
+                                Text("Your couple's offer")
+                                    .font(Lovio.Type_.headline)
+                            }
                             Text("Ends \(deadline, style: .relative) from now")
                                 .font(Lovio.Type_.caption)
                                 .foregroundStyle(.secondary)

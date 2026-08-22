@@ -42,6 +42,9 @@ packages:
   GoogleMobileAds:
     url: https://github.com/googleads/swift-package-manager-google-mobile-ads
     from: 12.0.0
+  TikTokBusinessSDK:
+    url: https://github.com/tiktok/tiktok-business-ios-sdk
+    from: 1.6.0
 
 targets:
   Lovio:
@@ -74,6 +77,8 @@ targets:
         product: FacebookCore
       - package: GoogleMobileAds
         product: GoogleMobileAds
+      - package: TikTokBusinessSDK
+        product: TikTokBusinessSDK
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bsekapps.lovio
@@ -88,8 +93,8 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/Lovio.entitlements
-        CURRENT_PROJECT_VERSION: 4
-        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 5
+        MARKETING_VERSION: 1.0.1
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         OTHER_LDFLAGS: "$(inherited) -ObjC"
       configs:
@@ -101,7 +106,7 @@ targets:
       path: Config/Lovio-Info.plist
       properties:
         CFBundleDisplayName: Missuo
-        CFBundleShortVersionString: "1.0"
+        CFBundleShortVersionString: "1.0.1"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # Apple App Store public SDK key (RevenueCat → Project settings → API keys).
         RevenueCatPublicAPIKey: "appl_dhTjZcLGCpygTpPiMXhGjbQxRaF"
@@ -127,6 +132,10 @@ targets:
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
         FirebaseAppDelegateProxyEnabled: false
+        # TikTok App Events SDK — fill both from TikTok Events Manager
+        # (Assets → Events → App → your app). Empty = SDK stays idle.
+        TikTokAppID: "7676057087091539989"
+        TikTokAccessToken: "TTdFlC0mrBvVyWi3T4rZQG1gyQw4XVad"
         # Meta (Facebook) SDK
         FacebookAppID: "979262581823967"
         FacebookClientToken: "1b520885a9114034b880f96321902e7f"
@@ -263,14 +272,14 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Config/LovioWidgets.entitlements
-        CURRENT_PROJECT_VERSION: 4
-        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 5
+        MARKETING_VERSION: 1.0.1
     info:
       path: Config/LovioWidgets-Info.plist
       properties:
         CFBundleDisplayName: Missuo Widgets
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "4"
+        CFBundleShortVersionString: "1.0.1"
+        CFBundleVersion: "5"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 

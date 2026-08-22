@@ -268,6 +268,13 @@ public struct GamePromptState: Identifiable, Sendable {
 
     public var matched: Bool? {
         guard revealedAnswers.count == 2 else { return nil }
+        // "Who's More Likely" (choiceA == nil) stores POSITIONS, and the
+        // name order is mirrored per phone: "a" = the author themself,
+        // "b" = their partner. The same PERSON is therefore the opposite
+        // position on each device — same pick ⟺ opposite choices.
+        if prompt.choiceA == nil {
+            return revealedAnswers[0].choice != revealedAnswers[1].choice
+        }
         return revealedAnswers[0].choice == revealedAnswers[1].choice
     }
 }

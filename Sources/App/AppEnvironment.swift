@@ -33,6 +33,7 @@ struct Services: Sendable {
                  aiCoach: CloudAICoachService(),  // DeepSeek via Cloud Functions — key stays server-side
                  analytics: CompositeAnalytics(sinks: [FirebaseAnalyticsClient(),
                                                        MetaAnalyticsAdapter(),
+                                                       TikTokAnalyticsAdapter(),
                                                        ConsoleAnalytics()]),
                  experiments: RemoteConfigExperiments())
     }
@@ -90,6 +91,13 @@ final class AppModel {
     /// Set the moment the couple becomes paired (either direction) —
     /// Home plays a full-screen celebration and clears it.
     var justPaired = false
+    /// Cached decline-offer package so Home can show the live SAVE %
+    /// (and every Premium gate can open the matching paywall).
+    var secondaryOffer: PaywallOffer?
+
+    /// Real SAVE % vs full-price yearly. Nil until RevenueCat has loaded,
+    /// or if the two prices are too close to advertise a discount.
+    var secondaryDiscountPercent: Int? { secondaryOffer?.discountPercentVsAnchor }
 
     init(services: Services, isDemoMode: Bool) {
         self.services = services
@@ -253,6 +261,15 @@ final class AppModel {
         return deadline > .now
     }
 
+    /// True only while the 7-day discount window is actually running.
+    /// Widgets, companions, and other Premium gates open paywall 2 in this
+    /// window; after it expires they fall back to paywall 1.
+    var isDiscountOfferWindowOpen: Bool {
+        guard !premium.isPremium else { return false }
+        guard let deadline = secondaryOfferDeadline else { return false }
+        return deadline > .now
+    }
+
     /// Called when a free user closes the paywall without buying. Starts the
     /// 7-day discounted-offer window (once) and schedules reminder pushes.
     func registerPaywallDecline() {
@@ -260,9 +277,22 @@ final class AppModel {
         if UserDefaults.standard.object(forKey: Self.offerDeclineKey) == nil {
             UserDefaults.standard.set(Date(), forKey: Self.offerDeclineKey)
         }
-        if let deadline = secondaryOfferDeadline, deadline > .now {
-            NotificationManager.shared.scheduleOfferReminders(deadline: deadline)
+        Task {
+            await refreshSecondaryOffer()
+            if let deadline = secondaryOfferDeadline, deadline > .now {
+                NotificationManager.shared.scheduleOfferReminders(
+                    deadline: deadline,
+                    discountPercent: secondaryDiscountPercent)
+            }
         }
+    }
+
+    func refreshSecondaryOffer() async {
+        guard !premium.isPremium else {
+            secondaryOffer = nil
+            return
+        }
+        secondaryOffer = try? await services.premium.secondaryOffer()
     }
 
     /// Guarantees: a signed-in user (anonymous if needed), a profile document,
@@ -541,6 +571,11 @@ final class AppModel {
             }
         }
         publishWidgetSnapshot()
+        if !premium.isPremium {
+            await refreshSecondaryOffer()
+        } else {
+            secondaryOffer = nil
+        }
         await NotificationManager.shared.scheduleEventReminders(dates: upcomingDates)
         await syncIncomingWidgetContent()
         await detectIncomingLove(rel: rel, me: user.id)

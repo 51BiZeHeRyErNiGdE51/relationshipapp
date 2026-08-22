@@ -250,7 +250,7 @@ struct MainTabView: View {
         }
         guard !model.premium.isPremium else { return }
         // Offer window running → the Home chip is already selling; stay quiet.
-        if model.secondaryOfferDeadline != nil, model.isSecondaryOfferActive { return }
+        if model.isDiscountOfferWindowOpen { return }
 
         let key = "missuo.paywall.lastAutoShownAt"
         let last = UserDefaults.standard.object(forKey: key) as? Date ?? .distantPast

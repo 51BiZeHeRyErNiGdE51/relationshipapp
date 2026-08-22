@@ -513,6 +513,11 @@ final class RemoteConfigExperiments: ExperimentsService, @unchecked Sendable {
             // `control` = billed amount is the CTA (App Review 3.1.2(c)).
             // After approval, set this to a one-line label e.g. "Try Free".
             "paywall_cta": "control" as NSString,
+            // Plan-specific overrides on the MAIN paywall: yearly has a free
+            // trial ("Start Your Free Trial") while monthly doesn't ("Continue").
+            // When set, these win over paywall_cta for their plan.
+            "paywall_cta_yearly": "control" as NSString,
+            "paywall_cta_monthly": "control" as NSString,
             // Decline / gift paywall button. Same rules as paywall_cta.
             "paywall_cta_secondary": "control" as NSString,
             "onboarding_order": "control" as NSString,

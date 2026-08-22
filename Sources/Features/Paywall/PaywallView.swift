@@ -39,6 +39,13 @@ struct PaywallView: View {
     }
 
     private func ctaLabel(for offer: PaywallOffer?, key: String = "paywall_cta") -> String {
+        // Main paywall: yearly (has free trial) and monthly (no trial) can carry
+        // different wording via `paywall_cta_yearly` / `paywall_cta_monthly`.
+        // Those win over the shared `paywall_cta` when set.
+        if key == "paywall_cta", let offer {
+            let planKey = isYearly(offer) ? "paywall_cta_yearly" : "paywall_cta_monthly"
+            if let remote = remoteCTA(forKey: planKey) { return remote }
+        }
         if let remote = remoteCTA(forKey: key) { return remote }
         if let offer { return billedPrice(offer) }
         return "Continue"
@@ -77,7 +84,12 @@ struct PaywallView: View {
             offers = (try? await model.services.premium.offers()) ?? []
             selected = offers.first { $0.isFeatured } ?? offers.first
             secondaryOffer = try? await model.services.premium.secondaryOffer()
-            if startOnSecondary, model.isSecondaryOfferActive, secondaryOffer != nil {
+            if let offer = secondaryOffer { model.secondaryOffer = offer }
+            // Any Premium gate (widgets, companions, games, deep links, Home
+            // chip) opens the discount paywall while the 7-day window is live.
+            // After it expires, everyone sees paywall 1 again.
+            if secondaryOffer != nil,
+               (model.isDiscountOfferWindowOpen || startOnSecondary) {
                 showSecondary = true
             }
         }
